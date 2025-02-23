@@ -8,7 +8,7 @@
 package main
 
 import (
-	"blackbox-go/stream"
+	"camera/stream"
 	"encoding/json"
 	"errors"
 	"flag"

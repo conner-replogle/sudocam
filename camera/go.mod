@@ -1,4 +1,4 @@
-module blackbox-go
+module camera
 
 go 1.23.0
 
