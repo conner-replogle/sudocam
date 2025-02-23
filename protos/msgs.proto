@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package rover;
+option go_package = "messages/msgspb";
+
+message Message {
+  string to = 1;
+  string from = 2;
+  oneof data_type {
+    Webrtc webrtc = 3; 
+    Initalization initalization = 4;
+ }
+}
+
+
+message Webrtc{
+  string stream_id = 1;
+  string data = 2;
+}
+
+message Initalization{
+  string id = 1;
+}
