@@ -1,6 +1,9 @@
 import { Navigate, Route, Routes } from "react-router";
 import Layout from "./Layout";
-import HomePage from "./pages/HomePage";
+import HomePage from "./pages/(dashboard)/HomePage";
+import Auth from "./pages/Auth";
+import DashLayout from "./pages/(dashboard)/Layout";
+import AddCamera from "./pages/(dashboard)/cameras/add";
 
 function App() {
   return (
@@ -8,7 +11,14 @@ function App() {
 
       
         <Route path="/" element={<Layout />}>
-          <Route index element={<HomePage />} />
+
+          <Route path="auth" element={<Auth />} />
+          <Route path="dash" element={<DashLayout/>} >
+            <Route path="cameras" >
+              <Route path="add" element={<AddCamera />} />
+            </Route>
+            <Route index element={<HomePage />} />
+          </Route>
 {/* 
           <Route path="/create" element={<CreatePage />} />
           <Route path="/auth" element={<AuthPage />} /> */}
@@ -24,6 +34,7 @@ function App() {
           <Route path="*" element={<NoMatch />} />
         </Route>
       </Routes>
+      
       
   );
 }

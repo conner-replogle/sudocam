@@ -17,6 +17,7 @@ import (
 	"log"
 	"log/slog"
 	pb "messages/msgspb"
+	"net/http"
 	"net/url"
 	"os"
 	"sync"
@@ -27,6 +28,7 @@ import (
 	"github.com/pion/webrtc/v4/pkg/media"
 	"github.com/pion/webrtc/v4/pkg/media/h264reader"
 	"google.golang.org/protobuf/proto"
+
 )
 
 const (
@@ -34,7 +36,7 @@ const (
 	h264FrameDuration = time.Millisecond * 33
 )
 
-var addr = flag.String("addr", "100.117.177.44:8080", "http service address")
+var addr = flag.String("addr", "http://100.117.177.44:8080", "http service address")
 
 const ClientUuid = "camera"
 
@@ -55,13 +57,50 @@ func (w *threadSafeWriter) writeMessage(messageType int, data []byte) error {
 	return w.conn.WriteMessage(messageType, data)
 }
 
+// Add this struct to match the server response
+
+type Turn struct {
+	IceServers webrtc.ICEServer `json:"iceServers"`
+}
+
+
+func fetchTURNCredentials() (*webrtc.ICEServer, error) {
+	resp, err := http.Get(fmt.Sprintf("%s/api/turn", *addr))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch TURN credentials: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	var creds Turn
+	if err := json.NewDecoder(resp.Body).Decode(&creds); err != nil {
+		return nil, fmt.Errorf("failed to decode TURN credentials: %w", err)
+	}
+
+	return &creds.IceServers, nil
+}
+
 func main() { //nolint
+
 	// Assert that we have an audio or video file
 	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
 	slog.SetDefault(slog.New(handler))
 
 	flag.Parse()
-	u := url.URL{Scheme: "ws", Host: *addr, Path: "/ws"}
+	u,err := url.Parse(*addr)
+	u.Scheme = "ws"
+	if (u.Scheme == "https"){
+		u.Scheme = "wss"
+	}
+	u.Path = "/ws"
+	
+	if err != nil {
+		log.Fatal("parse:", err)
+	}
+
 	log.Printf("connecting to %s", u.String())
 
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
@@ -189,9 +228,24 @@ func main() { //nolint
 		}
 	}
 }
-func createPeerConnection(videoTrack webrtc.TrackLocal, writer *threadSafeWriter, to string) *webrtc.PeerConnection {
 
-	peerConnection, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+func createPeerConnection(videoTrack webrtc.TrackLocal, writer *threadSafeWriter, to string) *webrtc.PeerConnection {
+	// Fetch TURN credentials
+	creds, err := fetchTURNCredentials()
+	if err != nil {
+		slog.Error("Failed to fetch TURN credentials", "error", err)
+		// Continue with default config if TURN fails
+		creds = nil
+	}
+
+	config := webrtc.Configuration{}
+	if creds != nil {
+		var iceServers []webrtc.ICEServer
+		iceServers = append(iceServers, *creds)
+		config.ICEServers = iceServers
+	}
+
+	peerConnection, err := webrtc.NewPeerConnection(config)
 	if err != nil {
 		panic(err)
 	}

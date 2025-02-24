@@ -8,8 +8,7 @@ import { Message, decodeMessage, encodeMessage } from "@/types/binding";
 
 const USERID = uuidv4();
 
-export const VideoStream: React.FC = () => {
-  const streamID = useMemo(() => uuidv4(), []);
+export const VideoStream = ({uuid}:{uuid:string}) => {
   const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -27,7 +26,7 @@ export const VideoStream: React.FC = () => {
         const messageObject = JSON.parse(message.webrtc!.data!)
   
 
-        if (messageObject.canidate == undefined){
+        if (messageObject.candidate == undefined){
           console.log("Received Answer:", messageObject);
           await peerConnection?.setRemoteDescription(new RTCSessionDescription(messageObject));
         }
@@ -82,11 +81,12 @@ export const VideoStream: React.FC = () => {
 
   const startStream = async () => {
     try {
-      // const out = await fetch("/api/authorize").then((res) => res.json());
-      // console.log("ICE Servers:", out);
+      const out = await fetch("/api/turn").then((res) => res.json());
+      console.log("ICE Servers:", out);
 
       const newPeerConnection = new RTCPeerConnection({
-          // iceServers: [out.iceServers]
+          iceServers: [out.iceServers],
+
       });
       
 
@@ -101,7 +101,7 @@ export const VideoStream: React.FC = () => {
 
           sendProto(
           {
-            to: 'camera',
+            to: uuid,
             from: USERID,
             webrtc: {
                 data: JSON.stringify(offer)
@@ -113,17 +113,17 @@ export const VideoStream: React.FC = () => {
         }
       });
 
-      newPeerConnection.addTransceiver("video", { direction: "sendrecv" });
+      newPeerConnection.addTransceiver("video", { direction: "recvonly" });
 
       newPeerConnection.addEventListener("icecandidate", (event: RTCPeerConnectionIceEvent) => {
         if (event.candidate) {
                     sendProto(
             {
-              to: 'camera',
+              to: uuid,
               from: USERID,
               webrtc: {
              
-            data: JSON.stringify(event.candidate),
+            data: JSON.stringify(event.candidate.toJSON()),
 
               }
             }
