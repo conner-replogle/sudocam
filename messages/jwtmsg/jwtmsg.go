@@ -13,4 +13,6 @@ type CameraAdd struct {
 type RegisterCamera struct {
 	CameraUUID string `json:"cameraUUID"`
 	Token string `json:"token"`
+	WifiNetwork string `json:"wifiNetwork"`
+	WifiPassword string `json:"wifiPassword"`
 }

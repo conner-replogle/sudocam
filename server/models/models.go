@@ -1,6 +1,10 @@
 package models
 
-import "gorm.io/gorm"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 type User struct {
 	gorm.Model
@@ -10,8 +14,11 @@ type User struct {
 
 type Camera struct {
 	gorm.Model
-	CameraUUID string `json:"cameraUUID" gorm:"unique"`
-	UserID     uint   `json:"userID"`
+	CameraUUID   string     `json:"cameraUUID" gorm:"unique"`
+	UserID       uint       `json:"userID"`
+	FriendlyName string     `json:"friendlyName"`
+	LastOnline   *time.Time `json:"lastOnline"`
+	OnlineStatus bool       `json:"onlineStatus" gorm:"default:false"`
 }
 
 type LoginRequest struct {

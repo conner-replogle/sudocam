@@ -1,14 +1,129 @@
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo, useEffect, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { Button } from "./ui/button";
 import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { Message, decodeMessage, encodeMessage } from "@/types/binding";
 
 
+interface RemoteVideoProps {
+  streamId: string;
+  stream: MediaStream;
+  pc: RTCPeerConnection | null; // Pass the peer connection
+}
 
-const USERID = uuidv4();
+// eslint-disable-next-line react/display-name
+const RemoteVideo = React.memo(({ streamId, stream, pc }: RemoteVideoProps) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [bitrate, setBitrate] = useState<number | null>(null);
+  const [fps, setFps] = useState<number | null>(null);
+  const [resolution, setResolution] = useState<string | null>(null);
+  const [previousBytesReceived, setPreviousBytesReceived] = useState<number | null>(null);
+  const [previousTimestamp, setPreviousTimestamp] = useState<number | null>(null);
+  const [noDataReceived, setNoDataReceived] = useState(true);
+  const [lastDataTime, setLastDataTime] = useState<number>(Date.now());
 
-export const VideoStream = ({uuid}:{uuid:string}) => {
+  useEffect(() => {
+    if (!videoRef.current) return;
+    videoRef.current.srcObject = stream;
+    videoRef.current.autoplay = true;
+    videoRef.current.controls = false;
+    videoRef.current.width = 1920;
+    videoRef.current.height = 1080;
+    videoRef.current.muted = true;
+
+    return () => {
+     
+      console.log(`Cleaning Up Video ${streamId}`);
+    };
+  }, [stream, streamId]);
+
+  // Function to get connection stats
+  const getConnectionStats = useCallback(async () => {
+    if (!pc) return;
+    try {
+      const stats = await pc.getStats(null);
+      let hasReceivedData = false;
+      
+      stats.forEach(report => {
+        if (report.type === 'inbound-rtp' && report.kind === 'video') {
+          if (report.trackIdentifier !== stream.getVideoTracks()[0]?.id) {
+            return;
+          }
+          
+ 
+
+          // Bitrate calculation
+          const bytesReceived = report.bytesReceived;
+          if (bytesReceived > 0 && bytesReceived !== previousBytesReceived) {
+            hasReceivedData = true;
+            setLastDataTime(Date.now());
+          }
+          const timestamp = report.timestamp;
+          if (previousBytesReceived === null) {
+            setPreviousBytesReceived(bytesReceived);
+            setPreviousTimestamp(timestamp);
+            return;
+          }
+          const bytesDiff = bytesReceived - previousBytesReceived;
+          const timeDiff = timestamp - previousTimestamp!;
+          const bitrate = (bytesDiff * 8) / (timeDiff); // bits per millisecond
+          const bitrateKbps = bitrate; // kilobits per second
+          const bitrateMbps = bitrateKbps / 1000; // megabits per second
+          setBitrate(bitrateMbps);
+          setPreviousBytesReceived(bytesReceived);
+          setPreviousTimestamp(timestamp);
+
+          // Latency calculation
+   
+          // FPS and resolution
+          setFps(report.framesPerSecond);
+          if (report.frameWidth && report.frameHeight) {
+            setResolution(`${report.frameWidth}x${report.frameHeight}`);
+          }
+        }
+
+     
+      });
+
+      // If it's been more than 5 seconds since last data
+      if (Date.now() - lastDataTime > 5000) {
+        setNoDataReceived(true);
+      } else if (hasReceivedData) {
+        setNoDataReceived(false);
+      }
+
+    } catch (e) {
+      console.error("Error getting stats:", e);
+    }
+  }, [pc, previousBytesReceived, previousTimestamp, stream, lastDataTime]);
+
+  // Call getConnectionStats periodically
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      getConnectionStats();
+    }, 1000);
+    return () => clearInterval(intervalId);
+  }, [getConnectionStats]);
+
+  return (
+    <div id={streamId} className="relative w-full h-full">
+      <video ref={videoRef} playsInline className="max-w-full max-h-full w-auto h-auto mx-auto object-contain " />
+      {noDataReceived && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-white">
+          <span className="text-lg">No video data received...</span>
+        </div>
+      )}
+      <div className="absolute bottom-2 left-2 bg-gray-800/80 text-white p-2 rounded-lg text-sm flex gap-4">
+        <span>{streamId}</span>
+        {bitrate !== null && <span>{bitrate.toFixed(1)} Mbps</span>}
+        {fps !== null && <span>{Math.round(fps)} FPS</span>}
+        {resolution !== null && <span>{resolution}</span>}
+      </div>
+    </div>
+  );
+});
+
+export const VideoStream = ({camera_uuid,user_uuid}:{camera_uuid:string,user_uuid:string}) => {
   const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -44,11 +159,14 @@ export const VideoStream = ({uuid}:{uuid:string}) => {
       sendProto(
         {
           to: 'server',
-          from: USERID,
+          from: user_uuid,
           initalization: {
-            id: USERID,
+            id: user_uuid,
+            is_user: true,
+            token: localStorage.getItem('token')!
           }
         })
+      startStream();
     },
     onError: (event) => {
       console.error("WebSocket error:", event);
@@ -56,9 +174,13 @@ export const VideoStream = ({uuid}:{uuid:string}) => {
     onClose: () => {
       console.log("WebSocket connection closed");
     },
-    shouldReconnect: (_) => true, // Enable automatic reconnection
+    shouldReconnect: (_) => {
+      return peerConnection?.iceConnectionState !== "connected"
+    }, // Enable automatic reconnection
     reconnectInterval: 3000,
-    reconnectAttempts: 10
+    reconnectAttempts: 10,
+    
+
   });
 
   const sendProto = useMemo(( )=> {
@@ -78,7 +200,7 @@ export const VideoStream = ({uuid}:{uuid:string}) => {
       sendMessage(encoded)
     }
   },[sendMessage])
-
+  
   const startStream = async () => {
     try {
       const out = await fetch("/api/turn").then((res) => res.json());
@@ -101,8 +223,8 @@ export const VideoStream = ({uuid}:{uuid:string}) => {
 
           sendProto(
           {
-            to: uuid,
-            from: USERID,
+            to: camera_uuid,
+            from: user_uuid,
             webrtc: {
                 data: JSON.stringify(offer)
             }         
@@ -112,6 +234,14 @@ export const VideoStream = ({uuid}:{uuid:string}) => {
           console.error("Error during negotiation:", error);
         }
       });
+      newPeerConnection.addEventListener("iceconnectionstatechange", () => {
+        console.log("ICE connection state changed:", newPeerConnection.iceConnectionState);
+        if (newPeerConnection.iceConnectionState === "connected"){
+          console.log("Connected")
+          // getWebSocket()?.close()
+        }
+      }
+      );
 
       newPeerConnection.addTransceiver("video", { direction: "recvonly" });
 
@@ -119,8 +249,8 @@ export const VideoStream = ({uuid}:{uuid:string}) => {
         if (event.candidate) {
                     sendProto(
             {
-              to: uuid,
-              from: USERID,
+              to: camera_uuid,
+              from: user_uuid,
               webrtc: {
              
             data: JSON.stringify(event.candidate.toJSON()),
@@ -144,36 +274,18 @@ export const VideoStream = ({uuid}:{uuid:string}) => {
       console.error("Error starting stream:", error);
     }
   };
-  const connectionStatus = {
-    [ReadyState.CONNECTING]: 'Connecting',
-    [ReadyState.OPEN]: 'Open',
-    [ReadyState.CLOSING]: 'Closing',
-    [ReadyState.CLOSED]: 'Closed',
-    [ReadyState.UNINSTANTIATED]: 'Uninstantiated',
-  }[readyState];
-
+  useEffect(() => {
+    if (readyState === ReadyState.OPEN && peerConnection === null) {
+    }
+  }
+  ,[readyState])
+ 
+  
   return (
-    <div className="p-5">
-      <h1 className="text-2xl font-bold mb-4">WebRTC Stream</h1>
-      <div className="mb-4">
-        <p>Connection Status: {connectionStatus}</p>
-      </div>
-      <Button 
-        onClick={startStream} 
-        disabled={readyState !== ReadyState.OPEN}
-      >
-        Start Stream
-      </Button>
-
-      <div className="mt-5">
-        <video
-          ref={videoRef}
-          className="w-[720px] p-5 h-auto rotate-90"
-          autoPlay
-          playsInline
-          controls={false}
-        />
-      </div>
+    <div className="mt-5 p-5 w-full overflow-hidden">
+      {
+        stream.current && <div className="max-w-full aspect-video"><RemoteVideo streamId={stream.current?.id!} stream={stream.current} pc={peerConnection} /></div>
+      }
     </div>
   );
 };

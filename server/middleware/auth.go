@@ -1,8 +1,10 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -20,6 +22,9 @@ var jwtKey []byte
 func SetJWTKey(key []byte) {
 	jwtKey = key
 }
+type ContextKey string
+
+const ContextUserKey ContextKey = "UserID"
 
 func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -29,13 +34,15 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		_, err := ValidateJWT(tokenString)
+		claims, err := ValidateJWT(tokenString)
 		if err != nil {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
+		slog.Debug("Claims", "claims", claims)
+		ctx := context.WithValue(r.Context(), ContextUserKey, claims.UserID)
 
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }
 

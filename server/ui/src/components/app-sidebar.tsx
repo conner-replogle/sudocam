@@ -61,7 +61,7 @@ const data = {
         },
         {
           title: "All Cameras",
-          url: "#",
+          url: "/dash",
         },
         {
           title: "Doorbell",

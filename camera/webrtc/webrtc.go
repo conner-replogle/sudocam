@@ -47,11 +47,12 @@ func (manager *WebRTCManager)StartCamera(){
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel() // Ensure cleanup when function exits
 		stream.Video(ctx,stream.CameraOptions{
-			Width:        1080,
-			Height:       1920,
+			Width:        1920,
+			Height:       1080,
 			Fps:          30,
 			UseLibcamera: true,
 			AutoFocus:    true,
+			PostProcess:  true,
 		}, w)
 
 		h264, h264Err := h264reader.NewReader(r)
@@ -179,6 +180,7 @@ func (manager *WebRTCManager) HandleMessage(msg *pb.Webrtc,from string) error {
 	// Attempt to unmarshal as a ICECandidateInit. If the candidate field is empty
 	// assume it is not one.
 	case json.Unmarshal([]byte(msg.Data), &candidate) == nil && candidate.Candidate != "":
+		slog.Debug("Recieved ICE Candidate")
 		peerConnection := manager.connections[from]
 		if peerConnection == nil {
 			panic("Recieved ICE Candicate but no pc")

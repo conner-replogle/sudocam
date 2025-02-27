@@ -32,6 +32,7 @@ type CameraOptions struct {
 	VerticalFlip        bool
 	Rotation            int
 	AutoFocus           bool
+	PostProcess		    bool
 	UseMjpeg            bool
 	UseLibcamera        bool // Set to true to enable libcamera, otherwise use legacy raspivid stack
 	AutoDetectLibCamera bool // Set to true to automatically detect if libcamera is available. If true, UseLibcamera is ignored.
@@ -62,7 +63,8 @@ func startCamera(ctx context.Context, options CameraOptions, writer io.Writer, m
 	if options.UseMjpeg {
 		args = append(args, "--codec", "mjpeg")
 	} else {
-		args = append(args, "--inline", "--profile", "baseline")
+		args = append(args, "--inline", "--profile", "baseline",
+	"--low-latency",   "-b", "1000000")
 	}
 
 	if options.AutoFocus {
@@ -77,6 +79,9 @@ func startCamera(ctx context.Context, options CameraOptions, writer io.Writer, m
 	if options.Rotation != 0 {
 		args = append(args, "--rotation")
 		args = append(args, strconv.Itoa(options.Rotation))
+	}
+	if options.PostProcess {
+		args = append(args, "--post-process-file", "post.json")
 	}
 
 	command := determineCameraCommand(options)

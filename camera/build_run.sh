@@ -12,6 +12,7 @@ ssh $REMOTE_USER@$REMOTE_HOST "pkill -f sudocam"
 
 # Copy the binary to the remote host
 scp $BINARY_PATH $REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH || { echo "SCP failed!"; exit 1; }
+scp "./assets/post.json" $REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH || { echo "SCP failed!"; exit 1; }
 
 # Execute the binary on the remote host
 ssh $REMOTE_USER@$REMOTE_HOST "cd $REMOTE_PATH  && chmod +x sudocam && export PION_LOG_DEBUG=all && ./sudocam "

@@ -15,3 +15,10 @@ Open Source Privacy Focused Indoor Security Camera
 
 
 
+## UP Next
+
+ - Fix Docker
+ - Camera crashing...
+ - Get IR and Wide angle
+ - motorized movement
+ - new case

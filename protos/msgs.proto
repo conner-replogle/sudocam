@@ -20,5 +20,6 @@ message Webrtc{
 
 message Initalization{
   string id = 1;
-  string account_id = 2;
+  bool is_user = 2;
+  string token = 3;
 }

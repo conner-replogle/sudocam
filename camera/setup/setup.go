@@ -14,7 +14,7 @@ import (
 	"messages/jwtmsg"
 	"net/http"
 	"net/url"
-	"os"
+	// "os"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -36,7 +36,7 @@ func ScanQRCode(img image.Image) *gozxing.Result {
 func RunSetup() *config.Config {
 	opt := stream.CameraOptions{
 		Width:        1920,
-		Height:       1080,
+			Height:       1080,
 		Fps:          15,
 		UseLibcamera: true,
 		AutoFocus:    true,
@@ -49,7 +49,7 @@ func RunSetup() *config.Config {
 	r, w := io.Pipe()
 	stream.Video(ctx, opt, w)
 
-	counter := 0
+	// counter := 0
 
 	for {
 		img, err := jpeg.Decode(r)
@@ -59,21 +59,21 @@ func RunSetup() *config.Config {
 		}
 
 		// Write the image to a file with an incrementing number
-		fileName := fmt.Sprintf("image_%d.jpg", counter)
-		file, err := os.Create(fileName)
-		if err != nil {
-			slog.Info("Error creating file", slog.Any("error", err))
-			continue
-		}
-		defer file.Close()
+		// fileName := fmt.Sprintf("image_%d.jpg", counter)
+		// file, err := os.Create(fileName)
+		// if err != nil {
+		// 	slog.Info("Error creating file", slog.Any("error", err))
+		// 	continue
+		// }
+		// defer file.Close()
 
-		err = jpeg.Encode(file, img, nil)
-		if err != nil {
-			slog.Info("Error encoding image to file", slog.Any("error", err))
-			continue
-		}
+		// err = jpeg.Encode(file, img, nil)
+		// if err != nil {
+		// 	slog.Info("Error encoding image to file", slog.Any("error", err))
+		// 	continue
+		// }
 
-		counter++
+		// counter++
 
 		result := ScanQRCode(img)
 		if result != nil {

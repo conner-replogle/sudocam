@@ -162,6 +162,8 @@ function _decodeWebrtc(bb: ByteBuffer): Webrtc {
 
 export interface Initalization {
   id?: string;
+  is_user?: boolean;
+  token?: string;
 }
 
 export function encodeInitalization(message: Initalization): Uint8Array {
@@ -176,6 +178,20 @@ function _encodeInitalization(message: Initalization, bb: ByteBuffer): void {
   if ($id !== undefined) {
     writeVarint32(bb, 10);
     writeString(bb, $id);
+  }
+
+  // optional bool is_user = 2;
+  let $is_user = message.is_user;
+  if ($is_user !== undefined) {
+    writeVarint32(bb, 16);
+    writeByte(bb, $is_user ? 1 : 0);
+  }
+
+  // optional string token = 3;
+  let $token = message.token;
+  if ($token !== undefined) {
+    writeVarint32(bb, 26);
+    writeString(bb, $token);
   }
 }
 
@@ -196,6 +212,18 @@ function _decodeInitalization(bb: ByteBuffer): Initalization {
       // optional string id = 1;
       case 1: {
         message.id = readString(bb, readVarint32(bb));
+        break;
+      }
+
+      // optional bool is_user = 2;
+      case 2: {
+        message.is_user = !!readByte(bb);
+        break;
+      }
+
+      // optional string token = 3;
+      case 3: {
+        message.token = readString(bb, readVarint32(bb));
         break;
       }
 

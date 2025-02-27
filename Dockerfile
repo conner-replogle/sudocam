@@ -21,7 +21,7 @@ COPY . .
 RUN cd server &&  go mod download
 
 # Build the application with static linking
-RUN cd server && CGO_ENABLED=0 go build  -o sudocam-server
+RUN cd server && go build  -o sudocam-server
 
 # Use stable-slim instead of bookworm-slim
 FROM debian:stable-slim AS production

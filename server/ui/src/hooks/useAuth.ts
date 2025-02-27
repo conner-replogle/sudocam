@@ -38,6 +38,8 @@ export function useAuth() {
     }
 
     validateToken()
+    // setIsAuthenticated(true)
+    // setIsLoading(false)
   }, [navigate])
 
   return { isAuthenticated, isLoading }
