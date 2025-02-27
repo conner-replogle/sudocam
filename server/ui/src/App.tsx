@@ -7,6 +7,7 @@ import AddCamera from "./pages/(dashboard)/cameras/add";
 
 function App() {
   return (
+    
       <Routes>
 
       

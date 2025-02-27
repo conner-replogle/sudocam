@@ -1,14 +1,15 @@
 import { VideoStream } from "@/components/VideoStream";
-import { CameraStatus } from "@/components/CameraStatus";
 import { useEffect, useState } from "react";
 import { Camera } from "@/types/camera";
 import useUser from "@/hooks/useUser";
+import CameraLayout from "@/components/CameraLayout";
 
 export default function HomePage() {
-    const {user,} = useUser();
+    const { user } = useUser();
     const [cameras, setCameras] = useState<Camera[]>([]);
     const [selectedCamera, setSelectedCamera] = useState<string>("");
     const [isLoading, setIsLoading] = useState(false);
+    const [viewMode, setViewMode] = useState<'grid' | 'single'>('grid');
 
     useEffect(() => {
         const fetchCameras = async () => {
@@ -23,7 +24,7 @@ export default function HomePage() {
                 if (!response.ok) throw new Error('Failed to fetch cameras');
                 const data = await response.json();
                 setCameras(data);
-                if (data.length > 0) {
+                if (data.length > 0 && !selectedCamera) {
                     setSelectedCamera(data[0].cameraUUID);
                 }
             } catch (error) {
@@ -39,32 +40,46 @@ export default function HomePage() {
         const intervalId = setInterval(fetchCameras, 30000);
         
         return () => clearInterval(intervalId);
-    }, []);
+    }, [selectedCamera]);
 
-    const selectedCameraObj = cameras.find(cam => cam.cameraUUID === selectedCamera);
+    const handleSelectCamera = (cameraUUID: string) => {
+        setSelectedCamera(cameraUUID);
+        setViewMode('single');
+    };
+
+    if (isLoading && cameras.length === 0 ) {
+        return <div className="flex items-center justify-center h-64">Loading cameras...</div>;
+    }
 
     return (
-        <div className="p-4">
-            <div className="mb-4 flex flex-col gap-2">
-                <select 
-                    value={selectedCamera}
-                    onChange={(e) => setSelectedCamera(e.target.value)}
-                    className="border rounded p-2"
-                >
-                    {cameras.map((camera) => (
-                        <option key={camera.cameraUUID} value={camera.cameraUUID}>
-                            Camera {camera.cameraUUID}
-                        </option>
-                    ))}
-                </select>
-                
-                {selectedCameraObj && (
-                    <CameraStatus camera={selectedCameraObj} />
-                )}
+        <div className="p-4 container mx-auto">
+            <div className="mb-6 flex justify-between items-center">
+                <h1 className="text-2xl font-bold">My Cameras</h1>
+                <div className="flex gap-2">
+                    <button 
+                        onClick={() => setViewMode('grid')} 
+                        className={`px-3 py-1 rounded ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}
+                    >
+                        Grid View
+                    </button>
+                    <button 
+                        onClick={() => setViewMode('single')} 
+                        className={`px-3 py-1 rounded ${viewMode === 'single' ? 'bg-primary text-primary-foreground' : 'bg-secondary'}`}
+                    >
+                        Single View
+                    </button>
+                </div>
             </div>
-            
-            {selectedCamera && <VideoStream user_uuid={user!.userID} camera_uuid={selectedCamera} />}
-            {isLoading && <div>Loading cameras...</div>}
+
+            {viewMode === 'grid' && user?.userID ? (
+                <CameraLayout user_id={user.userID} cameras={cameras} onSelectCamera={handleSelectCamera} />
+            ) : (
+                <div className="space-y-4">
+                    {selectedCamera && user?.userID && (
+                        <VideoStream showStats={true} user_uuid={user.userID} camera_uuid={selectedCamera} />
+                    )}
+                </div>
+            )}
         </div>
     );
 }

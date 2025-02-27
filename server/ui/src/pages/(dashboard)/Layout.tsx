@@ -16,6 +16,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth"
+import { WebRTCProvider } from "@/context/WebRTCContext";
 
 export default function RootLayout() {
   const { isAuthenticated, isLoading } = useAuth()
@@ -29,6 +30,7 @@ export default function RootLayout() {
   }
   
   return (
+    <WebRTCProvider>
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
@@ -55,5 +57,6 @@ export default function RootLayout() {
       </SidebarInset>
       <Toaster />
     </SidebarProvider>
+    </WebRTCProvider>
   );
 }

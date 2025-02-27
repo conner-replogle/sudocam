@@ -12,7 +12,8 @@ FROM base AS builder
 # Move to working directory /build
 WORKDIR /build
 
-# Install dependencies
+# Install SQLite development dependencies
+RUN apt-get update && apt-get install -y libsqlite3-dev
 
 # Copy the entire source code into the container
 COPY . .
@@ -26,18 +27,26 @@ RUN cd server && go build  -o sudocam-server
 # Use stable-slim instead of bookworm-slim
 FROM debian:stable-slim AS production
 
-# Combine CA certificate installation into a single layer
+# Combine CA certificate installation and SQLite3 runtime into a single layer
 RUN apt-get update && \
-    apt-get install -y ca-certificates && \
+    apt-get install -y ca-certificates libsqlite3-0 && \
     update-ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
     
 WORKDIR /app
+
+# Create data directory for SQLite database
+RUN mkdir -p /app/data
+
 COPY --from=builder /build/server/sudocam-server ./
 COPY --from=ui-builder /build/server/ui/dist ./ui/dist
+
 # Document the port that may need to be published
 EXPOSE 8080
+
+# Define a volume for SQLite database persistence
+VOLUME ["/app/data"]
 
 # Start the application
 CMD ["/app/sudocam-server"]

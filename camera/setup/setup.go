@@ -34,6 +34,10 @@ func ScanQRCode(img image.Image) *gozxing.Result {
 }
 
 func RunSetup() *config.Config {
+	return &config.Config{
+		Addr:       "http://100.117.177.44:8080",
+		CameraUuid: "1234",
+	}
 	opt := stream.CameraOptions{
 		Width:        1920,
 			Height:       1080,
