@@ -24,7 +24,7 @@ const RemoteVideo = React.memo(({showStats, streamId, stream, pc }: RemoteVideoP
     if (!videoRef.current) return;
     videoRef.current.srcObject = stream;
     videoRef.current.autoplay = true;
-    videoRef.current.controls = false;
+    videoRef.current.controls = true;
     videoRef.current.width = 1920;
     videoRef.current.height = 1080;
     videoRef.current.muted = true;

@@ -175,7 +175,7 @@ func handleMessages(conn *websocket.Conn, msg *pb.Message, db *gorm.DB, sourceCo
 		err := readProtoMessage(conn, msg)
 		if err != nil {
 			slog.Error("Error reading WebSocket message", "error", err)
-			continue
+			return
 		}
 
 		// Get target connection
