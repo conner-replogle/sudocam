@@ -1,9 +1,7 @@
 package webrtc
 
 import (
-	"camera/stream"
 	"camera/websocket"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,39 +19,27 @@ const (
 	h264FrameDuration = time.Millisecond * 33
 )
 
-
 type WebRTCManager struct {
-	Websocket *websocket.WebsocketManager
-	connections  map[string]*webrtc.PeerConnection
-	videoTrack webrtc.TrackLocal
+	Websocket   *websocket.WebsocketManager
+	connections map[string]*webrtc.PeerConnection
+	videoTrack  webrtc.TrackLocal
 }
 
 func NewWebRTCManager(ws *websocket.WebsocketManager) *WebRTCManager {
 	return &WebRTCManager{
-		Websocket: ws,
+		Websocket:   ws,
 		connections: make(map[string]*webrtc.PeerConnection),
 	}
 }
 
-func (manager *WebRTCManager)StartCamera(){
-	videoTrack, videoTrackErr := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264}, "video", "pion")
+func (manager *WebRTCManager) StartCamera(r *io.PipeReader) {
+	videoTrack, videoTrackErr := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264}, "video", "sudocam")
 	if videoTrackErr != nil {
 		panic(videoTrackErr)
 	}
 
 	go func() {
 		// Open a H264 file and start reading using our IVFReader
-		r, w := io.Pipe()
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel() // Ensure cleanup when function exits
-		stream.Video(ctx,stream.CameraOptions{
-			Width:        1920,
-			Height:       1080,
-			Fps:          30,
-			UseLibcamera: true,
-			AutoFocus:    true,
-			PostProcess:  true,
-		}, w)
 
 		h264, h264Err := h264reader.NewReader(r)
 		if h264Err != nil {
@@ -88,8 +74,7 @@ func (manager *WebRTCManager)StartCamera(){
 	manager.videoTrack = videoTrack
 }
 
-
-func (manager *WebRTCManager)CreatePeerConnection(client_uuid string) *webrtc.PeerConnection {
+func (manager *WebRTCManager) CreatePeerConnection(client_uuid string) *webrtc.PeerConnection {
 	// Fetch TURN credentials
 	creds, err := fetchTURNCredentials(manager.Websocket.ServerUrl.String())
 	if err != nil {
@@ -119,7 +104,9 @@ func (manager *WebRTCManager)CreatePeerConnection(client_uuid string) *webrtc.Pe
 			return
 		}
 
-		err = manager.Websocket.SendWebRTCMessage( candidate.ToJSON(), client_uuid)
+		err = manager.Websocket.SendWebRTCMessage(candidate.ToJSON(), client_uuid)
+		slog.Debug("Sent Ice Candidate")
+
 		if err != nil {
 			panic(err)
 		}
@@ -149,11 +136,17 @@ func (manager *WebRTCManager)CreatePeerConnection(client_uuid string) *webrtc.Pe
 	return peerConnection
 }
 
-func (manager *WebRTCManager) HandleMessage(msg *pb.Webrtc,from string) error {
+func (manager *WebRTCManager) HandleMessage(msg *pb.Webrtc, from string) error {
+
+	if from == "" {
+		return errors.New("no from field in message")
+	}
 	var (
 		candidate webrtc.ICECandidateInit
 		offer     webrtc.SessionDescription
 	)
+
+
 	switch {
 	// Attempt to unmarshal as a SessionDescription. If the SDP field is empty
 	// assume it is not one.
@@ -171,10 +164,11 @@ func (manager *WebRTCManager) HandleMessage(msg *pb.Webrtc,from string) error {
 			return err
 		}
 
-		if err := manager.Websocket.SendWebRTCMessage( answer, from); err != nil {
+		if err := manager.Websocket.SendWebRTCMessage(answer, from); err != nil {
 			return err
 		}
-		slog.Debug("Set PeerConnection")
+		slog.Debug("Sent Answer")
+
 		manager.connections[from] = peerConnection
 
 	// Attempt to unmarshal as a ICECandidateInit. If the candidate field is empty
@@ -189,7 +183,8 @@ func (manager *WebRTCManager) HandleMessage(msg *pb.Webrtc,from string) error {
 			return err
 		}
 	default:
-		panic("Unknown message")
+		slog.Error("Unknown message type", "msg", msg)
+
 	}
 	return nil
 }

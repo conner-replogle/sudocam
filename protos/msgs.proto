@@ -9,9 +9,19 @@ message Message {
   oneof data_type {
     Webrtc webrtc = 3; 
     Initalization initalization = 4;
+    Response response = 5;
+    HLSRequest hls_request = 6;
+    HLSResponse hls_response = 7;
  }
 }
 
+message HLSRequest{
+  string file_name = 2;
+}
+message HLSResponse{
+  string file_name = 2;
+  bytes data = 1;
+}
 
 message Webrtc{
   string stream_id = 1;
@@ -22,4 +32,9 @@ message Initalization{
   string id = 1;
   bool is_user = 2;
   string token = 3;
+}
+
+message Response {
+  string message = 1;
+  bool success = 2;
 }

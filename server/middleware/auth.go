@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
 
@@ -22,6 +21,7 @@ var jwtKey []byte
 func SetJWTKey(key []byte) {
 	jwtKey = key
 }
+
 type ContextKey string
 
 const ContextUserKey ContextKey = "UserID"
@@ -36,10 +36,9 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 		claims, err := ValidateJWT(tokenString)
 		if err != nil {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			http.Error(w, "Unauthorized User", http.StatusUnauthorized)
 			return
 		}
-		slog.Debug("Claims", "claims", claims)
 		ctx := context.WithValue(r.Context(), ContextUserKey, claims.UserID)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -47,6 +46,13 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func ExtractToken(r *http.Request) string {
+	// First try to get token from cookie
+	cookie, err := r.Cookie("auth_token")
+	if err == nil && cookie.Value != "" {
+		return cookie.Value
+	}
+
+	// Fallback to Authorization header
 	bearerToken := r.Header.Get("Authorization")
 	if len(strings.Split(bearerToken, " ")) == 2 {
 		return strings.Split(bearerToken, " ")[1]

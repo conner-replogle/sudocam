@@ -8,7 +8,6 @@ import (
 	"syscall"
 
 	"github.com/joho/godotenv"
-	spa "github.com/roberthodgen/spa-server"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
@@ -38,15 +37,22 @@ func setupRoutes(db *gorm.DB) {
 	// Auth routes
 	http.HandleFunc("/api/signup", handlers.HandleSignup(db))
 	http.HandleFunc("/api/login", handlers.HandleLogin(db, jwtKey))
+	http.HandleFunc("/api/logout", handlers.HandleLogout())
 	http.HandleFunc("/api/validate", handlers.ValidateToken)
 
 	// User routes
 	http.HandleFunc("/api/users/cameras", middleware.AuthMiddleware(handlers.UsersCameras(db)))
+	http.HandleFunc("/api/users/me", middleware.AuthMiddleware(handlers.Me(db)))
 	// Camera routes
 	http.HandleFunc("/api/cameras/generate", middleware.AuthMiddleware(handlers.HandleGenerateCamera(jwtKey)))
 	http.HandleFunc("/api/cameras/register", handlers.HandleRegisterCamera(db, jwtKey))
 	http.HandleFunc("/api/camera/status", handlers.UpdateCameraStatus(db))
 	http.HandleFunc("/api/camera/ping", handlers.PingCamera(db))
+	http.HandleFunc("/api/cameras/delete", middleware.AuthMiddleware(handlers.DeleteCamera(db)))
+	http.HandleFunc("/api/cameras/update", middleware.AuthMiddleware(handlers.UpdateCamera(db)))
+
+	// HLS video content route
+	http.HandleFunc("/api/cameras/", handlers.ServeHLSContent(db))
 
 	// WebSocket route
 	http.HandleFunc("/ws", websocket.HandleWebSocket(db))
@@ -54,8 +60,8 @@ func setupRoutes(db *gorm.DB) {
 	// TURN credentials route
 	http.HandleFunc("/api/turn", handlers.HandleTURNCredentials())
 
-	// Serve static files
-	http.Handle("/", spa.SpaHandler("ui/dist", "index.html"))
+	// Serve static files with the base path "/dash"
+	http.Handle("/", handlers.SpaHandlerWithBasePath("ui/dist", "index.html", "/"))
 }
 
 func startServer() {
@@ -93,6 +99,9 @@ func main() {
 		slog.Error("Failed to setup database", "error", err)
 		os.Exit(1)
 	}
+
+	// Register the HLS response handler
+	handlers.RegisterHLSResponseHandler()
 
 	setupRoutes(db)
 	startServer()

@@ -3,6 +3,9 @@ export interface Message {
   from?: string;
   webrtc?: Webrtc;
   initalization?: Initalization;
+  response?: Response;
+  hls_request?: HLSRequest;
+  hls_response?: HLSResponse;
 }
 
 export function encodeMessage(message: Message): Uint8Array {
@@ -43,6 +46,39 @@ function _encodeMessage(message: Message, bb: ByteBuffer): void {
     writeVarint32(bb, 34);
     let nested = popByteBuffer();
     _encodeInitalization($initalization, nested);
+    writeVarint32(bb, nested.limit);
+    writeByteBuffer(bb, nested);
+    pushByteBuffer(nested);
+  }
+
+  // optional Response response = 5;
+  let $response = message.response;
+  if ($response !== undefined) {
+    writeVarint32(bb, 42);
+    let nested = popByteBuffer();
+    _encodeResponse($response, nested);
+    writeVarint32(bb, nested.limit);
+    writeByteBuffer(bb, nested);
+    pushByteBuffer(nested);
+  }
+
+  // optional HLSRequest hls_request = 6;
+  let $hls_request = message.hls_request;
+  if ($hls_request !== undefined) {
+    writeVarint32(bb, 50);
+    let nested = popByteBuffer();
+    _encodeHLSRequest($hls_request, nested);
+    writeVarint32(bb, nested.limit);
+    writeByteBuffer(bb, nested);
+    pushByteBuffer(nested);
+  }
+
+  // optional HLSResponse hls_response = 7;
+  let $hls_response = message.hls_response;
+  if ($hls_response !== undefined) {
+    writeVarint32(bb, 58);
+    let nested = popByteBuffer();
+    _encodeHLSResponse($hls_response, nested);
     writeVarint32(bb, nested.limit);
     writeByteBuffer(bb, nested);
     pushByteBuffer(nested);
@@ -88,6 +124,138 @@ function _decodeMessage(bb: ByteBuffer): Message {
         let limit = pushTemporaryLength(bb);
         message.initalization = _decodeInitalization(bb);
         bb.limit = limit;
+        break;
+      }
+
+      // optional Response response = 5;
+      case 5: {
+        let limit = pushTemporaryLength(bb);
+        message.response = _decodeResponse(bb);
+        bb.limit = limit;
+        break;
+      }
+
+      // optional HLSRequest hls_request = 6;
+      case 6: {
+        let limit = pushTemporaryLength(bb);
+        message.hls_request = _decodeHLSRequest(bb);
+        bb.limit = limit;
+        break;
+      }
+
+      // optional HLSResponse hls_response = 7;
+      case 7: {
+        let limit = pushTemporaryLength(bb);
+        message.hls_response = _decodeHLSResponse(bb);
+        bb.limit = limit;
+        break;
+      }
+
+      default:
+        skipUnknownField(bb, tag & 7);
+    }
+  }
+
+  return message;
+}
+
+export interface HLSRequest {
+  file_name?: string;
+}
+
+export function encodeHLSRequest(message: HLSRequest): Uint8Array {
+  let bb = popByteBuffer();
+  _encodeHLSRequest(message, bb);
+  return toUint8Array(bb);
+}
+
+function _encodeHLSRequest(message: HLSRequest, bb: ByteBuffer): void {
+  // optional string file_name = 2;
+  let $file_name = message.file_name;
+  if ($file_name !== undefined) {
+    writeVarint32(bb, 18);
+    writeString(bb, $file_name);
+  }
+}
+
+export function decodeHLSRequest(binary: Uint8Array): HLSRequest {
+  return _decodeHLSRequest(wrapByteBuffer(binary));
+}
+
+function _decodeHLSRequest(bb: ByteBuffer): HLSRequest {
+  let message: HLSRequest = {} as any;
+
+  end_of_message: while (!isAtEnd(bb)) {
+    let tag = readVarint32(bb);
+
+    switch (tag >>> 3) {
+      case 0:
+        break end_of_message;
+
+      // optional string file_name = 2;
+      case 2: {
+        message.file_name = readString(bb, readVarint32(bb));
+        break;
+      }
+
+      default:
+        skipUnknownField(bb, tag & 7);
+    }
+  }
+
+  return message;
+}
+
+export interface HLSResponse {
+  file_name?: string;
+  data?: Uint8Array;
+}
+
+export function encodeHLSResponse(message: HLSResponse): Uint8Array {
+  let bb = popByteBuffer();
+  _encodeHLSResponse(message, bb);
+  return toUint8Array(bb);
+}
+
+function _encodeHLSResponse(message: HLSResponse, bb: ByteBuffer): void {
+  // optional string file_name = 2;
+  let $file_name = message.file_name;
+  if ($file_name !== undefined) {
+    writeVarint32(bb, 18);
+    writeString(bb, $file_name);
+  }
+
+  // optional bytes data = 1;
+  let $data = message.data;
+  if ($data !== undefined) {
+    writeVarint32(bb, 10);
+    writeVarint32(bb, $data.length), writeBytes(bb, $data);
+  }
+}
+
+export function decodeHLSResponse(binary: Uint8Array): HLSResponse {
+  return _decodeHLSResponse(wrapByteBuffer(binary));
+}
+
+function _decodeHLSResponse(bb: ByteBuffer): HLSResponse {
+  let message: HLSResponse = {} as any;
+
+  end_of_message: while (!isAtEnd(bb)) {
+    let tag = readVarint32(bb);
+
+    switch (tag >>> 3) {
+      case 0:
+        break end_of_message;
+
+      // optional string file_name = 2;
+      case 2: {
+        message.file_name = readString(bb, readVarint32(bb));
+        break;
+      }
+
+      // optional bytes data = 1;
+      case 1: {
+        message.data = readBytes(bb, readVarint32(bb));
         break;
       }
 
@@ -224,6 +392,67 @@ function _decodeInitalization(bb: ByteBuffer): Initalization {
       // optional string token = 3;
       case 3: {
         message.token = readString(bb, readVarint32(bb));
+        break;
+      }
+
+      default:
+        skipUnknownField(bb, tag & 7);
+    }
+  }
+
+  return message;
+}
+
+export interface Response {
+  message?: string;
+  success?: boolean;
+}
+
+export function encodeResponse(message: Response): Uint8Array {
+  let bb = popByteBuffer();
+  _encodeResponse(message, bb);
+  return toUint8Array(bb);
+}
+
+function _encodeResponse(message: Response, bb: ByteBuffer): void {
+  // optional string message = 1;
+  let $message = message.message;
+  if ($message !== undefined) {
+    writeVarint32(bb, 10);
+    writeString(bb, $message);
+  }
+
+  // optional bool success = 2;
+  let $success = message.success;
+  if ($success !== undefined) {
+    writeVarint32(bb, 16);
+    writeByte(bb, $success ? 1 : 0);
+  }
+}
+
+export function decodeResponse(binary: Uint8Array): Response {
+  return _decodeResponse(wrapByteBuffer(binary));
+}
+
+function _decodeResponse(bb: ByteBuffer): Response {
+  let message: Response = {} as any;
+
+  end_of_message: while (!isAtEnd(bb)) {
+    let tag = readVarint32(bb);
+
+    switch (tag >>> 3) {
+      case 0:
+        break end_of_message;
+
+      // optional string message = 1;
+      case 1: {
+        message.message = readString(bb, readVarint32(bb));
+        break;
+      }
+
+      // optional bool success = 2;
+      case 2: {
+        message.success = !!readByte(bb);
         break;
       }
 

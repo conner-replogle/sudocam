@@ -55,7 +55,6 @@ func HandleTURNCredentials() http.HandlerFunc {
 			return
 		}
 
-		slog.Debug("Forwarding response", "status", resp.StatusCode, "body", string(body))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(resp.StatusCode)
 		w.Write(body)

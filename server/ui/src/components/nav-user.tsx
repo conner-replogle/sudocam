@@ -29,6 +29,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { useAppContext } from "@/context/AppContext"
 
 export function NavUser({
   user,
@@ -39,6 +40,7 @@ export function NavUser({
     avatar: string
   }
 }) {
+
   const { isMobile } = useSidebar()
 
   return (

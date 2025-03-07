@@ -1,7 +1,10 @@
 export interface Camera {
-    id: number;
-    cameraUUID: string;
-    userID: number;
-    lastOnline: string | null;
-    onlineStatus: boolean;
+  cameraUUID: string;
+  name: string;
+  location?: string;
+  type?: string;
+  isOnline?: boolean;
+  lastSeen?: string;
+  createdAt?: string;
+  thumbnailUrl?: string;
 }

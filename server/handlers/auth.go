@@ -44,6 +44,7 @@ func HandleSignup(db *gorm.DB) http.HandlerFunc {
 	}
 }
 
+// HandleLogin processes user login and sets JWT as an HTTP-only cookie
 func HandleLogin(db *gorm.DB, jwtKey []byte) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -51,26 +52,27 @@ func HandleLogin(db *gorm.DB, jwtKey []byte) http.HandlerFunc {
 			return
 		}
 
-		var loginReq models.LoginRequest
-		if err := json.NewDecoder(r.Body).Decode(&loginReq); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
+		var creds models.LoginRequest
+		err := json.NewDecoder(r.Body).Decode(&creds)
+		if err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
 			return
 		}
 
 		var user models.User
-		if err := db.Where("email = ?", loginReq.Email).First(&user).Error; err != nil {
+		if err := db.Where("email = ?", creds.Email).First(&user).Error; err != nil {
 			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 			return
 		}
 
-		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loginReq.Password)); err != nil {
+		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(creds.Password)); err != nil {
 			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 			return
 		}
 
+		// Create a JWT token
 		expirationTime := time.Now().Add(24 * time.Hour)
 		claims := &middleware.Claims{
-			Email:  user.Email,
 			UserID: user.ID,
 			RegisteredClaims: jwt.RegisteredClaims{
 				ExpiresAt: jwt.NewNumericDate(expirationTime),
@@ -80,15 +82,47 @@ func HandleLogin(db *gorm.DB, jwtKey []byte) http.HandlerFunc {
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 		tokenString, err := token.SignedString(jwtKey)
 		if err != nil {
-			http.Error(w, "Error creating token", http.StatusInternalServerError)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 
+		// Set the token as an HTTP-only cookie
+		http.SetCookie(w, &http.Cookie{
+			Name:     "auth_token",
+			Value:    tokenString,
+			Expires:  expirationTime,
+			HttpOnly: true,
+			Path:     "/",
+			SameSite: http.SameSiteStrictMode,
+			// Secure: true, // Enable in production with HTTPS
+		})
+
+		// Also return the token in the response for backward compatibility
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"token": tokenString})
+		json.NewEncoder(w).Encode(map[string]string{
+			"token": tokenString,
+		})
 	}
 }
+// HandleLogout clears the authentication cookie
+func HandleLogout() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Clear the auth cookie by setting an expired cookie
+		http.SetCookie(w, &http.Cookie{
+			Name:     "auth_token",
+			Value:    "",
+			Expires:  time.Now().Add(-1 * time.Hour), // Set to past time
+			HttpOnly: true,
+			Path:     "/",
+			SameSite: http.SameSiteStrictMode,
+			// Secure: true, // Enable in production with HTTPS
+		})
 
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"success": true}`))
+	}
+}
 func ValidateToken(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -103,9 +137,19 @@ func ValidateToken(w http.ResponseWriter, r *http.Request) {
 
 	claims, err := middleware.ValidateJWT(tokenString)
 	if err != nil {
+		http.SetCookie(w, &http.Cookie{
+			Name:     "auth_token",
+			Value:    "",
+			Expires:  time.Now().Add(-1 * time.Hour), // Set to past time
+			HttpOnly: true,
+			Path:     "/",
+			SameSite: http.SameSiteStrictMode,
+			// Secure: true, // Enable in production with HTTPS
+		})
 		json.NewEncoder(w).Encode(models.TokenResponse{Valid: false})
 		return
 	}
+
 
 	json.NewEncoder(w).Encode(models.TokenResponse{
 		Valid: true,

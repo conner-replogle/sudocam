@@ -1,1 +1,5 @@
-{"addr":"http://100.117.177.44:8080","camera_uuid":"camera"}
+{
+  "cameraUUID": "f197a2af-046c-4685-93eb-5502576540cc",
+  "cameraName": "Test Cam",
+  "addr": "http://100.117.177.44:8080"
+}

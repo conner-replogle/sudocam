@@ -19,13 +19,13 @@ export const CameraStatus = ({ camera }: CameraStatusProps) => {
     <div className="flex items-center gap-2">
       <div
         className={`w-3 h-3 rounded-full ${
-          camera.onlineStatus ? "bg-green-500" : "bg-red-500"
+          camera.isOnline ? "bg-green-500" : "bg-red-500"
         }`}
       ></div>
       <span>
-        {camera.onlineStatus ? "Online" : "Offline"}{camera.onlineStatus ?
+        {camera.isOnline ? "Online" : "Offline"}{camera.isOnline ?
         "": 
-        " •  Last seen " + formatLastOnline(camera.lastOnline)}
+        " •  Last seen " + formatLastOnline(camera.lastSeen!)}
       </span>
     </div>
   );

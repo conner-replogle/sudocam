@@ -1,10 +1,12 @@
 package websocket
 
 import (
+	"camera/config"
 	"encoding/json"
 	"log/slog"
 	pb "messages/msgspb"
 	"net/url"
+	"os"
 	"sync"
 	"time"
 
@@ -78,7 +80,7 @@ func (manager *WebsocketManager) connect() bool {
 	manager.connected = true
 
 	// Send initialization message
-	err = SendProtoMessage(writer, &pb.Message{
+	err = manager.SendMessage(&pb.Message{
 		From: manager.CameraUuid,
 		To:   "server",
 		DataType: &pb.Message_Initalization{
@@ -90,6 +92,26 @@ func (manager *WebsocketManager) connect() bool {
 
 	if err != nil {
 		slog.Error("failed to send initialization message:", "error", err)
+		manager.connected = false
+		c.Close()
+		return false
+	}
+
+	msg, err := manager.ReadMessage()
+	if err != nil {
+		slog.Error("failed to read initialization response:", "error", err)
+		manager.connected = false
+		c.Close()
+		return false
+	}
+	response := msg.GetResponse()
+	if response == nil || !response.Success {
+		if !response.Success {
+			slog.Error("We are not authorized to connect to the server")
+			config.DeleteConfig("config.json")
+			os.Exit(1)
+		}
+		slog.Error("server failed to acknowledge initialization")
 		manager.connected = false
 		c.Close()
 		return false
@@ -195,10 +217,25 @@ func (manager *WebsocketManager) ReadMessage() (*pb.Message, error) {
 	return msg, nil
 }
 
-func (manager *WebsocketManager) SendWebRTCMessage(payload any, to string) error {
+func (manager *WebsocketManager) SendMessage(message *pb.Message) error {
 	if !manager.ensureConnected() {
 		return websocket.ErrCloseSent
 	}
+
+	data, err := proto.Marshal(message)
+	if err != nil {
+		return err
+	}
+	err = manager.Writer.writeMessage(websocket.BinaryMessage, data)
+	if err != nil {
+		slog.Error("failed to send message:", "error", err)
+		manager.connected = false
+		manager.startReconnectLoop()
+	}
+	return err
+}
+
+func (manager *WebsocketManager) SendWebRTCMessage(payload any, to string) error {
 
 	message := &pb.Message{
 		From: manager.CameraUuid,
@@ -216,19 +253,11 @@ func (manager *WebsocketManager) SendWebRTCMessage(payload any, to string) error
 		},
 	}
 
-	err := SendProtoMessage(manager.Writer, message)
+	err := manager.SendMessage(message)
 	if err != nil {
 		slog.Error("failed to send WebRTC message:", "error", err)
 		manager.connected = false
 		manager.startReconnectLoop()
 	}
 	return err
-}
-
-func SendProtoMessage(writer *ThreadSafeWriter, message *pb.Message) error {
-	data, err := proto.Marshal(message)
-	if err != nil {
-		return err
-	}
-	return writer.writeMessage(websocket.BinaryMessage, data)
 }

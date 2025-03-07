@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Message, encodeMessage } from "@/types/binding";
 import useWebSocket, { ReadyState } from 'react-use-websocket';
+import { api, apiGet } from '@/lib/api';
+import { useAppContext } from './AppContext';
 
 interface CameraConnection {
   peerConnection: RTCPeerConnection;
@@ -10,8 +12,8 @@ interface CameraConnection {
 }
 
 interface WebRTCContextType {
-  getConnection: (cameraUuid: string, userUuid: string) => CameraConnection | null;
-  ensureConnection: (cameraUuid: string, userUuid: string) => void;
+  getConnection: (cameraUuid: string) => CameraConnection | null;
+  ensureConnection: (cameraUuid: string) => void;
   disconnectCamera: (cameraUuid: string) => void;
 }
 
@@ -30,6 +32,7 @@ interface WebRTCProviderProps {
 }
 
 export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
+  const { user } = useAppContext();
   const [connections, setConnections] = useState<Record<string, CameraConnection>>({});
   const [pendingConnections, setPendingConnections] = useState<Set<string>>(new Set());
   
@@ -78,11 +81,10 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
     onOpen: () => {
       console.log("WebRTC WebSocket connection established");
       const token = localStorage.getItem('token');
-      if (token) {
+      if (token && user?.id) {
         // Initialize any pending connections
-        pendingConnections.forEach(connectionKey => {
-          const [cameraUuid, userUuid] = connectionKey.split('|');
-          setupNewConnection(cameraUuid, userUuid);
+        pendingConnections.forEach(cameraUuid => {
+          setupNewConnection(cameraUuid);
         });
       }
     }
@@ -96,11 +98,22 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
     sendMessage(encoded);
   }, [sendMessage, readyState]);
 
-  const setupNewConnection = useCallback(async (cameraUuid: string, userUuid: string) => {
+  const setupNewConnection = useCallback(async (cameraUuid: string) => {
+    if (!user?.id) {
+      console.error("User not authenticated");
+      return;
+    }
+    
+    const userUuid = user.id;
+    console.log("New connection setup for", cameraUuid, userUuid);
+    if (!cameraUuid) {
+      console.error("Invalid camera UUID");
+      return;
+    }
     const connectionKey = `${cameraUuid}|${userUuid}`;
     
     if (readyState !== ReadyState.OPEN) {
-      setPendingConnections(prev => new Set(prev).add(connectionKey));
+      setPendingConnections(prev => new Set(prev).add(cameraUuid));
       return;
     }
 
@@ -117,8 +130,8 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
       });
 
       // Fetch TURN/ICE servers
-      const turnResponse = await fetch("/api/turn");
-      const turnData = await turnResponse.json();
+      const turnData = await apiGet<any>("/api/turn");
+      
       
       // Create peer connection
       const newPeerConnection = new RTCPeerConnection({
@@ -228,20 +241,27 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
         }
       }));
     }
-  }, [readyState, sendProto]);
+  }, [readyState, sendProto, user]);
 
-  const getConnection = useCallback((cameraUuid: string, userUuid: string): CameraConnection | null => {
-    const connectionKey = `${cameraUuid}|${userUuid}`;
+  const getConnection = useCallback((cameraUuid: string): CameraConnection | null => {
+    if (!user?.id) return null;
+    
+    const connectionKey = `${cameraUuid}|${user.id}`;
     return connections[connectionKey] || null;
-  }, [connections]);
+  }, [connections, user]);
 
-  const ensureConnection = useCallback((cameraUuid: string, userUuid: string) => {
-    const connectionKey = `${cameraUuid}|${userUuid}`;
+  const ensureConnection = useCallback((cameraUuid: string) => {
+    if (!user?.id) {
+      console.error("User not authenticated");
+      return;
+    }
+    
+    const connectionKey = `${cameraUuid}|${user.id}`;
     
     if (!connections[connectionKey]) {
-      setupNewConnection(cameraUuid, userUuid);
+      setupNewConnection(cameraUuid);
     }
-  }, [connections, setupNewConnection]);
+  }, [connections, setupNewConnection, user]);
 
   const disconnectCamera = useCallback((cameraUuid: string) => {
     // Find all connections for this camera

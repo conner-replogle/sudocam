@@ -23,7 +23,7 @@ export function LocationSwitcher({
   locations: {
     name: string
     logo: React.ElementType
-    plan: string
+    address: string
   }[]
 }) {
   const { isMobile } = useSidebar()
@@ -45,7 +45,7 @@ export function LocationSwitcher({
                 <span className="truncate font-semibold">
                   {activeTeam.name}
                 </span>
-                <span className="truncate text-xs">{activeTeam.plan}</span>
+                <span className="truncate text-xs">{activeTeam.address}</span>
               </div>
               <ChevronsUpDown className="ml-auto" />
             </SidebarMenuButton>

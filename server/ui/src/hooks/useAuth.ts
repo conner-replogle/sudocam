@@ -1,3 +1,4 @@
+import { apiGet } from '@/lib/api'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 
@@ -8,21 +9,9 @@ export function useAuth() {
 
   useEffect(() => {
     const validateToken = async () => {
-      const token = localStorage.getItem('token')
-      if (!token) {
-        setIsLoading(false)
-        navigate('/auth')
-        return
-      }
 
       try {
-        const response = await fetch('/api/validate', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        })
-
-        const data = await response.json()
+        const data = await apiGet('/api/validate')
         if (!data.valid) {
           localStorage.removeItem('token')
           navigate('/auth')

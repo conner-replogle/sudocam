@@ -13,12 +13,19 @@ Open Source Privacy Focused Indoor Security Camera
  - Affordable
  - Customizable
 
-
+Need to redo from websocket to grpc
 
 ## UP Next
 
- - Fix Docker
- - Camera crashing...
- - Get IR and Wide angle
- - motorized movement
- - new case
+ - [X] Fix Docker
+ - [ ] Camera crashing...
+ - [ ] Get IR and Wide angle
+ - [ ] motorized movement
+ - [ ] new case
+ - [ ] Microphone
+ - [ ] COnfig params for camera (Motors, etc)
+
+
+## Future
+ - Custom pcbs for sellable product but can always use off the shelf
+ 

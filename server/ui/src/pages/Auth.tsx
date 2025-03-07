@@ -5,6 +5,14 @@ import { Input } from "@/components/ui/input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { toast } from "sonner"
+import { apiPost } from "@/lib/api"
+
+// Create a global user state management or context if needed
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+}
 
 export default function Auth() {
   const [isLoading, setIsLoading] = useState(false)
@@ -15,30 +23,29 @@ export default function Auth() {
     setIsLoading(true)
 
     const formData = new FormData(e.currentTarget)
+    const name = formData.get('name') as string
     const email = formData.get('email') as string
     const password = formData.get('password') as string
 
     try {
-      const response = await fetch(`/api/${type}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Authentication failed')
-      }
-
-      const data = await response.json()
-      
       if (type === 'login') {
+        const data = await apiPost('/api/login', { email, password })
+        
+        // Store authentication token
         localStorage.setItem('token', data.token)
-        navigate('/dash')
+        
+        toast.success('Successfully logged in!')
+        navigate('/')
       } else {
+        await apiPost('/api/signup', { name, email, password })
         toast.success('Account created! Please log in.')
+        
       }
     } catch (error) {
-      toast.error(type === 'login' ? 'Login failed' : 'Signup failed')
+      const errorMsg = error instanceof Error ? error.message : 'An error occurred';
+      toast.error(type === 'login' 
+        ? `Login failed: ${errorMsg}` 
+        : `Signup failed: ${errorMsg}`);
     } finally {
       setIsLoading(false)
     }
@@ -53,8 +60,8 @@ export default function Auth() {
         <CardContent>
           <Tabs defaultValue="login">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              <TabsTrigger value="login" data-value="login">Login</TabsTrigger>
+              <TabsTrigger value="signup" data-value="signup">Sign Up</TabsTrigger>
             </TabsList>
             
             <TabsContent value="login">
@@ -86,6 +93,12 @@ export default function Auth() {
             <TabsContent value="signup">
               <form onSubmit={(e) => onSubmit('signup', e)}>
                 <div className="space-y-4">
+                  <Input
+                    name="name"
+                    type="text"
+                    placeholder="Name"
+                    required
+                  />
                   <Input
                     name="email"
                     type="email"

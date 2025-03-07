@@ -114,18 +114,18 @@ const RemoteVideo = React.memo(({showStats, streamId, stream, pc }: RemoteVideoP
   );
 });
 
-export const VideoStream = ({showStats, camera_uuid, user_uuid}: {camera_uuid: string, user_uuid: string, showStats?: boolean}) => {
+export const VideoStream = ({showStats, camera_uuid}: {camera_uuid: string, showStats?: boolean}) => {
   const { getConnection, ensureConnection } = useWebRTC();
   const [isLoading, setIsLoading] = useState(true);
   
   // Ensure we have a connection for this camera
   useEffect(() => {
-    ensureConnection(camera_uuid, user_uuid);
+    ensureConnection(camera_uuid);
     setIsLoading(false);
-  }, [camera_uuid, user_uuid, ensureConnection]);
+  }, [camera_uuid, ensureConnection]);
   
   // Get the connection data
-  const connection = getConnection(camera_uuid, user_uuid);
+  const connection = getConnection(camera_uuid);
   
   if (isLoading) {
     return (

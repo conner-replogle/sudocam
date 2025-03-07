@@ -9,16 +9,17 @@ import (
 type User struct {
 	gorm.Model
 	Email    string `json:"email" gorm:"unique"`
+	Name     string `json:"name"`
 	Password string `json:"password"`
 }
 
 type Camera struct {
 	gorm.Model
-	CameraUUID   string     `json:"cameraUUID" gorm:"unique"`
-	UserID       uint       `json:"userID"`
-	FriendlyName string     `json:"friendlyName"`
-	LastOnline   *time.Time `json:"lastOnline"`
-	OnlineStatus bool       `json:"onlineStatus" gorm:"default:false"`
+	CameraUUID string     `json:"cameraUUID" gorm:"unique"`
+	UserID     uint       `json:"userID"`
+	Name       string     `json:"name"`
+	LastSeen   *time.Time `json:"lastSeen"`
+	IsOnline   bool       `json:"isOnline" gorm:"default:false"`
 }
 
 type LoginRequest struct {

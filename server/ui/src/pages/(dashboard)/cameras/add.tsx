@@ -1,27 +1,71 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import QRCode from "react-qr-code"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "sonner"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useAppContext } from "@/context/AppContext"
+import { Camera } from "@/types/camera"
+import { useNavigate } from "react-router"
+import { apiPost } from "@/lib/api"
 
 export default function AddCamera() {
+  const navigate = useNavigate()
+  const {cameras,refetchCameras}=useAppContext();
+  
+  const [prevCameras, setPrevCameras] = useState<Camera[]>()
+  const [tab, setTab] = useState<'setup' | 'code'>('setup')
   const [code, setCode] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [cameraName, setCameraName] = useState("")
+  const [wifiNetwork, setWifiNetwork] = useState("")
+  const [wifiPassword, setWifiPassword] = useState("")
+  const [needWifi, setNeedWifi] = useState(true)
+  const [showPassword, setShowPassword] = useState(false)
+
+  useEffect(() => {
+
+    if (prevCameras !== undefined && cameras.length > prevCameras.length) {
+      toast.success("Camera added successfully!")
+      
+      setTimeout(() => {
+        navigate('/cameras')
+      }, 2000)
+      setPrevCameras(undefined)
+    }
+  }
+  ,[cameras,prevCameras])
 
   const generateCode = async () => {
+    // Form validation
+    if (!cameraName.trim()) {
+      toast.error("Please enter a camera name")
+      return
+    }
+
+    if (needWifi && !wifiNetwork.trim()) {
+      toast.error("Please enter a Wi-Fi network name")
+      return
+    }
+
     setIsLoading(true)
     try {
-      const response = await fetch('/api/cameras/generate', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      })
-
-      if (!response.ok) throw new Error('Failed to generate code')
-      
-      const data = await response.json()
+      const data = await apiPost<{code:string}>('/api/cameras/generate', {
+        friendly_name: cameraName,
+        wifi_network: needWifi ? wifiNetwork : null,
+        wifi_password: needWifi ? wifiPassword : null
+      });
+    
       setCode(data.code)
+      toast.success("QR code generated successfully!")
+      setPrevCameras(cameras)
+      setInterval(() => {
+        refetchCameras()
+      }, 2000)
+      setTab('code')
     } catch (error) {
       toast.error('Failed to generate camera code')
     } finally {
@@ -31,33 +75,130 @@ export default function AddCamera() {
 
   return (
     <div className="container max-w-2xl py-6">
-      <Card>
+      <Card className="w-full">
         <CardHeader>
           <CardTitle>Add New Camera</CardTitle>
+          <CardDescription>
+            Set up a new camera device to connect to your account
+          </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col items-center gap-6">
+        <CardContent>
+          <Tabs defaultValue="setup" value={tab} className="mb-4">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="setup">1. Setup Information</TabsTrigger>
+              <TabsTrigger value="code" disabled={!code}>2. QR Code</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="setup">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="camera-name">Camera Name</Label>
+                  <Input 
+                    id="camera-name" 
+                    placeholder="e.g. Front Door, Kitchen, Backyard" 
+                    value={cameraName}
+                    onChange={(e) => setCameraName(e.target.value)}
+                  />
+                </div>
+                
+                <div className="flex items-center space-x-2 my-4">
+                  <Checkbox 
+                    id="needs-wifi" 
+                    checked={needWifi}
+                    onCheckedChange={(checked:boolean) => setNeedWifi(!!checked)} 
+                  />
+                  <Label htmlFor="needs-wifi">Camera needs Wi-Fi setup</Label>
+                </div>
+                
+                {needWifi && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="wifi-name">Wi-Fi Network Name</Label>
+                      <Input 
+                        id="wifi-name" 
+                        placeholder="Your Wi-Fi SSID" 
+                        value={wifiNetwork}
+                        onChange={(e) => setWifiNetwork(e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="wifi-password">Wi-Fi Password</Label>
+                      <div className="relative">
+                        <Input 
+                          id="wifi-password" 
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Your Wi-Fi password" 
+                          value={wifiPassword}
+                          onChange={(e) => setWifiPassword(e.target.value)}
+                        />
+                        <button 
+                          type="button"
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5 text-gray-500 hover:text-gray-700"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? "Hide" : "Show"}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="code">
+              {code && (
+                <div className="flex flex-col items-center gap-6">
+                  <div className="bg-white p-4 rounded-lg">
+                    <QRCode value={code} size={256} />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-medium">Camera: {cameraName}</p>
+                    {needWifi && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Will connect to: {wifiNetwork}
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground text-center max-w-md">
+                    Scan this QR code with your camera device. The setup process should complete automatically.
+                  </p>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+        <CardFooter className="flex justify-between">
           {!code ? (
             <Button 
               onClick={generateCode} 
               disabled={isLoading}
+              className="w-full"
             >
-              {isLoading ? "Generating..." : "Generate Camera Code"}
+              {isLoading ? "Generating..." : "Generate QR Code"}
             </Button>
           ) : (
-            <div className="flex flex-col items-center gap-4">
-              <QRCode value={code} />
-              <p className="text-sm text-muted-foreground">
-                Scan this QR code with your camera device
-              </p>
+            <div className="flex w-full gap-4">
               <Button
                 variant="outline"
                 onClick={() => setCode(null)}
+                className="flex-1"
               >
-                Generate New Code
+                Start Over
+              </Button>
+              
+              <Button 
+                onClick={() => {
+                  const tab = document.querySelector('[data-value="code"]') as HTMLElement;
+                  if (tab) tab.click();
+                }}
+                className="flex-1"
+              >
+                View QR Code
               </Button>
             </div>
           )}
-        </CardContent>
+        </CardFooter>
       </Card>
     </div>
   )

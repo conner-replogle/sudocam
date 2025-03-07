@@ -2,55 +2,48 @@ package config
 
 import (
 	"encoding/json"
-	// "errors"
 	"os"
 )
 
-
-
+// Config holds the camera configuration
 type Config struct {
-	Addr string `json:"addr"`
-	CameraUuid string `json:"camera_uuid"`
+	CameraUuid string `json:"cameraUUID"`
+	CameraName string `json:"cameraName"`
+	Addr       string `json:"addr"`
+	RecordDir  string `json:"record_dir"`
+	// Add any other configuration fields here
 }
 
-
-func NewConfig(addr string, camera_uuid string) *Config {
-	return &Config{
-		Addr: addr,
-		CameraUuid: camera_uuid,
-	}
-}
-
-func LoadConfig(file string) (*Config,error) {
-	// Load the configuration from a file
-	// return nil,errors.New("testing")
-
-	fileContent, err := os.ReadFile(file)
+// LoadConfig loads the configuration from a JSON file
+func LoadConfig(filename string) (*Config, error) {
+	data, err := os.ReadFile(filename)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 
 	var config Config
-	err = json.Unmarshal(fileContent, &config)
-	if err != nil {
-		return nil,err
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, err
 	}
 
-	return &config,nil
+	// Set default record directory if not specified
+	if config.RecordDir == "" {
+		config.RecordDir = "recordings"
+	}
+
+	return &config, nil
 }
 
-func (c *Config) SaveConfig(file string) error {
-	// Save the configuration to a file
-	
+func DeleteConfig(filename string) error {
+	return os.Remove(filename)
+}
 
-	configJson, err := json.Marshal(c)
+// SaveConfig saves the configuration to a JSON file
+func (c *Config) SaveConfig(filename string) error {
+	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	err = os.WriteFile(file, configJson, os.ModePerm)
-	if err != nil {
-		return err
-	}
-	return nil
+	return os.WriteFile(filename, data, 0644)
 }

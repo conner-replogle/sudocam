@@ -17,6 +17,9 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
+import { Link } from "react-router"
+import { Badge } from "./ui/badge"
+import { ElementType } from "react"
 
 export function NavMain({
   items,
@@ -28,7 +31,8 @@ export function NavMain({
     isActive?: boolean
     items?: {
       title: string
-      url: string
+      url: string,
+      tag?: ElementType
     }[]
   }[]
 }) {
@@ -36,8 +40,8 @@ export function NavMain({
     <SidebarGroup>
       <SidebarGroupLabel>Platform</SidebarGroupLabel>
       <SidebarMenu>
-        {items.map((item) => (
-          <Collapsible
+        {items.map((item) => 
+          item.items ? <Collapsible
             key={item.title}
             asChild
             defaultOpen={item.isActive}
@@ -56,16 +60,25 @@ export function NavMain({
                   {item.items?.map((subItem) => (
                     <SidebarMenuSubItem key={subItem.title}>
                       <SidebarMenuSubButton asChild>
-                        <a href={subItem.url}>
-                          <span>{subItem.title}</span>
-                        </a>
+                        <Link to={subItem.url}>
+                          <span className="mr-auto">{subItem.title}</span>
+                          {subItem.tag && <subItem.tag />}
+                        </Link>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                   ))}
                 </SidebarMenuSub>
               </CollapsibleContent>
             </SidebarMenuItem>
-          </Collapsible>
+          </Collapsible> : (
+            <SidebarMenuItem key={item.title}>
+              <SidebarMenuButton asChild>
+                <Link to={item.url}>
+                  {item.icon && <item.icon />}
+                  <span>{item.title}</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
         ))}
       </SidebarMenu>
     </SidebarGroup>
