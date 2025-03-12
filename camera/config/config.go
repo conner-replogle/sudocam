@@ -2,15 +2,19 @@ package config
 
 import (
 	"encoding/json"
+	pb "messages/msgspb"
 	"os"
 )
 
 // Config holds the camera configuration
 type Config struct {
-	CameraUuid string `json:"cameraUUID"`
-	CameraName string `json:"cameraName"`
-	Addr       string `json:"addr"`
-	RecordDir  string `json:"record_dir"`
+	CameraUuid string                  `json:"cameraUUID"`
+	CameraName string                  `json:"cameraName"`
+	Addr       string                  `json:"addr"`
+	RecordDir  string                  `json:"record_dir"`
+	Token      string                  `json:"token"`
+	UserConfig pb.UserConfig           `json:"userConfig"`
+
 	// Add any other configuration fields here
 }
 

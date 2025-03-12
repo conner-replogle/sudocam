@@ -8,11 +8,14 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm"
 
 	"messages/jwtmsg"
+	pb "messages/msgspb"
 	"server/middleware"
 	"server/models"
+	"server/websocket"
 )
 
 // CameraAddRequest represents the request body for camera add endpoint
@@ -29,8 +32,16 @@ type DeleteCameraRequest struct {
 
 // UpdateCameraRequest represents the request body for camera update endpoint
 type UpdateCameraRequest struct {
-	CameraUUID string `json:"camera_uuid"`
-	Name       string `json:"name"`
+	Id     string         `json:"id"`
+	Name   *string        `json:"name"`
+	Config *pb.UserConfig `json:"config"`
+}
+
+func NewUserConfig() pb.UserConfig {
+	return pb.UserConfig{
+		RecordingType: pb.RecordingType_RECORDING_TYPE_OFF,
+		MotionEnabled: false,
+	}
 }
 
 func HandleGenerateCamera(jwtKey []byte) http.HandlerFunc {
@@ -53,7 +64,7 @@ func HandleGenerateCamera(jwtKey []byte) http.HandlerFunc {
 			return
 		}
 
-		userID := r.Context().Value(middleware.ContextUserKey).(uint)
+		userID := r.Context().Value(middleware.ContextUserKey).(string)
 		serverURL := os.Getenv("SERVER_URL")
 		expirationTime := time.Now().Add(2 * time.Hour)
 
@@ -112,11 +123,12 @@ func HandleRegisterCamera(db *gorm.DB, jwtKey []byte) http.HandlerFunc {
 
 		// Create the camera with the friendly name from the claims
 		camera := models.Camera{
-			CameraUUID: register.CameraUUID,
-			UserID:     claims.UserID,
-			Name:       claims.FriendlyName,
+			ID:     register.CameraUUID,
+			UserID: claims.UserID,
+			Name:   claims.FriendlyName,
 			// Location:     "Default", // You can set a default location or leave it null
-			IsOnline: true,
+			Config:   NewUserConfig(),
+			IsOnline: false,
 		}
 
 		if err := db.Create(&camera).Error; err != nil {
@@ -124,81 +136,27 @@ func HandleRegisterCamera(db *gorm.DB, jwtKey []byte) http.HandlerFunc {
 			http.Error(w, "Error registering camera", http.StatusInternalServerError)
 			return
 		}
+		auth_claims := &jwtmsg.AuthClaims{
+			EntityID:         register.CameraUUID,
+			EntityType:       jwtmsg.EntityTypeCamera,
+			RegisteredClaims: jwt.RegisteredClaims{},
+		}
 
+		token = jwt.NewWithClaims(jwt.SigningMethodHS256, auth_claims)
+		tokenString, err := token.SignedString(jwtKey)
+		if err != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		//Send Refresh to User if connected
+		websocket.SendRefreshToClient(claims.UserID)
+		w.Header().Add(
+			"Authorization",
+			"Bearer "+tokenString,
+		)
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(map[string]string{"message": "Camera registered successfully"})
-	}
-}
-
-// UpdateCameraStatus handles requests to update a camera's online status
-func UpdateCameraStatus(db *gorm.DB) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		var statusUpdate models.CameraStatusUpdate
-		if err := json.NewDecoder(r.Body).Decode(&statusUpdate); err != nil {
-			http.Error(w, "Invalid request body", http.StatusBadRequest)
-			return
-		}
-
-		// Find the camera
-		var camera models.Camera
-		if err := db.Where("camera_uuid = ?", statusUpdate.CameraUUID).First(&camera).Error; err != nil {
-			http.Error(w, "Camera not found", http.StatusNotFound)
-			return
-		}
-
-		// Update the camera's status
-		now := time.Now()
-		camera.LastSeen = &now
-		camera.IsOnline = statusUpdate.OnlineStatus
-
-		if err := db.Save(&camera).Error; err != nil {
-			http.Error(w, "Failed to update camera status", http.StatusInternalServerError)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
-	}
-}
-
-// PingCamera is a simple endpoint for cameras to ping the server to maintain "online" status
-func PingCamera(db *gorm.DB) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		cameraUUID := r.URL.Query().Get("uuid")
-		if cameraUUID == "" {
-			http.Error(w, "Camera UUID is required", http.StatusBadRequest)
-			return
-		}
-
-		// Find the camera
-		var camera models.Camera
-		if err := db.Where("camera_uuid = ?", cameraUUID).First(&camera).Error; err != nil {
-			http.Error(w, "Camera not found", http.StatusNotFound)
-			return
-		}
-
-		// Update the camera's last online timestamp and set status to online
-		now := time.Now()
-		camera.LastSeen = &now
-		camera.IsOnline = true
-
-		if err := db.Save(&camera).Error; err != nil {
-			http.Error(w, "Failed to update camera status", http.StatusInternalServerError)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 	}
 }
 
@@ -219,20 +177,16 @@ func UpdateCamera(db *gorm.DB) http.HandlerFunc {
 		}
 
 		// Validate camera UUID and name
-		if req.CameraUUID == "" {
-			http.Error(w, "Camera UUID is required", http.StatusBadRequest)
-			return
-		}
-		if req.Name == "" {
-			http.Error(w, "Camera name is required", http.StatusBadRequest)
+		if req.Id == "" {
+			http.Error(w, "Camera Id is required", http.StatusBadRequest)
 			return
 		}
 
-		userID := r.Context().Value(middleware.ContextUserKey).(uint)
+		userID := r.Context().Value(middleware.ContextUserKey).(string)
 
 		// Find the camera
 		var camera models.Camera
-		if err := db.Where("camera_uuid = ?", req.CameraUUID).First(&camera).Error; err != nil {
+		if err := db.Where("id = ?", req.Id).First(&camera).Error; err != nil {
 			http.Error(w, "Camera not found", http.StatusNotFound)
 			return
 		}
@@ -246,13 +200,27 @@ func UpdateCamera(db *gorm.DB) http.HandlerFunc {
 			return
 		}
 
-		// Update the camera name
-		camera.Name = req.Name
+		if req.Name != nil {
+			camera.Name = *req.Name
+		}
+		if req.Config != nil {
+			proto.Reset(&camera.Config)
+			proto.Merge(&camera.Config, req.Config)
+		}
 
 		if err := db.Save(&camera).Error; err != nil {
 			slog.Error("Failed to update camera", slog.Any("error", err))
 			http.Error(w, "Error updating camera", http.StatusInternalServerError)
 			return
+		}
+		err := websocket.SendMessageToClient(camera.ID, &pb.Message{
+			DataType: &pb.Message_UserConfig{
+				UserConfig: &camera.Config,
+			},
+		})
+
+		if err != nil {
+			slog.Error("Failed to send config update to camera", slog.Any("error", err))
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -285,7 +253,7 @@ func DeleteCamera(db *gorm.DB) http.HandlerFunc {
 			return
 		}
 
-		userID := r.Context().Value(middleware.ContextUserKey).(uint)
+		userID := r.Context().Value(middleware.ContextUserKey).(string)
 		// Find the camera
 		var camera models.Camera
 		if err := db.Where("camera_uuid = ?", req.CameraUUID).First(&camera).Error; err != nil {
@@ -315,4 +283,47 @@ func DeleteCamera(db *gorm.DB) http.HandlerFunc {
 			"message": "Camera deleted successfully",
 		})
 	}
+}
+
+func GetCameraConfig(db *gorm.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		providedCameraID := r.PathValue("id")
+
+		claims := r.Context().Value(middleware.ContextClaimKey).(jwtmsg.AuthClaims)
+
+		id := claims.EntityID
+
+		if claims.EntityType == jwtmsg.EntityTypeCamera && providedCameraID != id {
+			http.Error(w, "Unauthorized access", http.StatusForbidden)
+			return
+		}
+
+		if claims.EntityType == jwtmsg.EntityTypeUser {
+			var camera models.Camera
+			if err := db.Where("id = ?", providedCameraID).First(&camera).Error; err != nil {
+				http.Error(w, "Camera not found", http.StatusNotFound)
+				return
+			}
+
+			if camera.UserID != claims.EntityID {
+				http.Error(w, "Unauthorized access", http.StatusForbidden)
+				return
+			}
+		}
+
+		config := &models.Camera{}
+		if err := db.Model(&models.Camera{}).Where("id = ?", providedCameraID).Select("config").Find(&config).Error; err != nil {
+			slog.Error("Error fetching camera config", "error", err)
+			http.Error(w, "Error fetching camera config", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(&config.Config)
+	}
+
 }

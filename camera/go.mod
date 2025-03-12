@@ -5,6 +5,13 @@ go 1.23.0
 require github.com/makiuchi-d/gozxing v0.1.1
 
 require (
+	github.com/aws/aws-sdk-go v1.55.6 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
+	github.com/u2takey/ffmpeg-go v0.5.0 // indirect
+	github.com/u2takey/go-utils v0.3.1 // indirect
+)
+
+require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/gen2brain/malgo v0.11.23 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible

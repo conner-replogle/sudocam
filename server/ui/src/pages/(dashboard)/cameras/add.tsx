@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import QRCode from "react-qr-code"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,6 +11,7 @@ import { useAppContext } from "@/context/AppContext"
 import { Camera } from "@/types/camera"
 import { useNavigate } from "react-router"
 import { apiPost } from "@/lib/api"
+import { Maximize2, X } from "lucide-react"
 
 export default function AddCamera() {
   const navigate = useNavigate()
@@ -25,6 +26,7 @@ export default function AddCamera() {
   const [wifiPassword, setWifiPassword] = useState("")
   const [needWifi, setNeedWifi] = useState(true)
   const [showPassword, setShowPassword] = useState(false)
+  const [qrPopupOpen, setQrPopupOpen] = useState(false)
 
   useEffect(() => {
 
@@ -58,13 +60,12 @@ export default function AddCamera() {
         wifi_network: needWifi ? wifiNetwork : null,
         wifi_password: needWifi ? wifiPassword : null
       });
+      setPrevCameras(cameras)
+
     
       setCode(data.code)
       toast.success("QR code generated successfully!")
-      setPrevCameras(cameras)
-      setInterval(() => {
-        refetchCameras()
-      }, 2000)
+
       setTab('code')
     } catch (error) {
       toast.error('Failed to generate camera code')
@@ -149,8 +150,11 @@ export default function AddCamera() {
             <TabsContent value="code">
               {code && (
                 <div className="flex flex-col items-center gap-6">
-                  <div className="bg-white p-4 rounded-lg">
-                    <QRCode value={code} size={256} />
+                  <div className="relative">
+                    <div className="bg-white p-4 rounded-lg">
+                      <QRCode value={code} size={256} />
+                    </div>
+              
                   </div>
                   <div className="text-center">
                     <p className="font-medium">Camera: {cameraName}</p>
@@ -189,8 +193,7 @@ export default function AddCamera() {
               
               <Button 
                 onClick={() => {
-                  const tab = document.querySelector('[data-value="code"]') as HTMLElement;
-                  if (tab) tab.click();
+                  setQrPopupOpen(true)
                 }}
                 className="flex-1"
               >
@@ -200,6 +203,38 @@ export default function AddCamera() {
           )}
         </CardFooter>
       </Card>
+
+      {/* QR Code Popup Modal */}
+      {qrPopupOpen && code && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setQrPopupOpen(false)}>
+          <div 
+            className="bg-white rounded-lg p-6 max-w-[90vw] max-h-[90vh] relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="absolute top-2 right-2 hover:bg-gray-100" 
+              onClick={() => setQrPopupOpen(false)}
+            >
+              <X className="h-5 w-5" />
+            </Button>
+            <div className="flex flex-col items-center gap-4">
+              <div className="bg-white p-4 rounded-lg">
+                <QRCode value={code} size={512} />
+              </div>
+              <div className="text-center">
+                <p className="font-medium text-lg">Camera: {cameraName}</p>
+                {needWifi && (
+                  <p className="mt-1">
+                    Will connect to: {wifiNetwork}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

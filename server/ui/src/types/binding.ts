@@ -1,3 +1,27 @@
+export const enum RecordingType {
+  RECORDING_TYPE_UNSPECIFIED = "RECORDING_TYPE_UNSPECIFIED",
+  RECORDING_TYPE_OFF = "RECORDING_TYPE_OFF",
+  RECORDING_TYPE_CONTINUOUS = "RECORDING_TYPE_CONTINUOUS",
+  RECORDING_TYPE_CONTINUOUS_SCHEDULED = "RECORDING_TYPE_CONTINUOUS_SCHEDULED",
+  RECORDING_TYPE_MOTION = "RECORDING_TYPE_MOTION",
+}
+
+export const encodeRecordingType: { [key: string]: number } = {
+  RECORDING_TYPE_UNSPECIFIED: 0,
+  RECORDING_TYPE_OFF: 1,
+  RECORDING_TYPE_CONTINUOUS: 2,
+  RECORDING_TYPE_CONTINUOUS_SCHEDULED: 3,
+  RECORDING_TYPE_MOTION: 4,
+};
+
+export const decodeRecordingType: { [key: number]: RecordingType } = {
+  0: RecordingType.RECORDING_TYPE_UNSPECIFIED,
+  1: RecordingType.RECORDING_TYPE_OFF,
+  2: RecordingType.RECORDING_TYPE_CONTINUOUS,
+  3: RecordingType.RECORDING_TYPE_CONTINUOUS_SCHEDULED,
+  4: RecordingType.RECORDING_TYPE_MOTION,
+};
+
 export interface Message {
   to?: string;
   from?: string;
@@ -6,6 +30,10 @@ export interface Message {
   response?: Response;
   hls_request?: HLSRequest;
   hls_response?: HLSResponse;
+  record_request?: RecordRequest;
+  record_response?: RecordResponse;
+  user_config?: UserConfig;
+  trigger_refresh?: TriggerRefresh;
 }
 
 export function encodeMessage(message: Message): Uint8Array {
@@ -83,6 +111,50 @@ function _encodeMessage(message: Message, bb: ByteBuffer): void {
     writeByteBuffer(bb, nested);
     pushByteBuffer(nested);
   }
+
+  // optional RecordRequest record_request = 8;
+  let $record_request = message.record_request;
+  if ($record_request !== undefined) {
+    writeVarint32(bb, 66);
+    let nested = popByteBuffer();
+    _encodeRecordRequest($record_request, nested);
+    writeVarint32(bb, nested.limit);
+    writeByteBuffer(bb, nested);
+    pushByteBuffer(nested);
+  }
+
+  // optional RecordResponse record_response = 9;
+  let $record_response = message.record_response;
+  if ($record_response !== undefined) {
+    writeVarint32(bb, 74);
+    let nested = popByteBuffer();
+    _encodeRecordResponse($record_response, nested);
+    writeVarint32(bb, nested.limit);
+    writeByteBuffer(bb, nested);
+    pushByteBuffer(nested);
+  }
+
+  // optional UserConfig user_config = 10;
+  let $user_config = message.user_config;
+  if ($user_config !== undefined) {
+    writeVarint32(bb, 82);
+    let nested = popByteBuffer();
+    _encodeUserConfig($user_config, nested);
+    writeVarint32(bb, nested.limit);
+    writeByteBuffer(bb, nested);
+    pushByteBuffer(nested);
+  }
+
+  // optional TriggerRefresh trigger_refresh = 11;
+  let $trigger_refresh = message.trigger_refresh;
+  if ($trigger_refresh !== undefined) {
+    writeVarint32(bb, 90);
+    let nested = popByteBuffer();
+    _encodeTriggerRefresh($trigger_refresh, nested);
+    writeVarint32(bb, nested.limit);
+    writeByteBuffer(bb, nested);
+    pushByteBuffer(nested);
+  }
 }
 
 export function decodeMessage(binary: Uint8Array): Message {
@@ -147,6 +219,38 @@ function _decodeMessage(bb: ByteBuffer): Message {
       case 7: {
         let limit = pushTemporaryLength(bb);
         message.hls_response = _decodeHLSResponse(bb);
+        bb.limit = limit;
+        break;
+      }
+
+      // optional RecordRequest record_request = 8;
+      case 8: {
+        let limit = pushTemporaryLength(bb);
+        message.record_request = _decodeRecordRequest(bb);
+        bb.limit = limit;
+        break;
+      }
+
+      // optional RecordResponse record_response = 9;
+      case 9: {
+        let limit = pushTemporaryLength(bb);
+        message.record_response = _decodeRecordResponse(bb);
+        bb.limit = limit;
+        break;
+      }
+
+      // optional UserConfig user_config = 10;
+      case 10: {
+        let limit = pushTemporaryLength(bb);
+        message.user_config = _decodeUserConfig(bb);
+        bb.limit = limit;
+        break;
+      }
+
+      // optional TriggerRefresh trigger_refresh = 11;
+      case 11: {
+        let limit = pushTemporaryLength(bb);
+        message.trigger_refresh = _decodeTriggerRefresh(bb);
         bb.limit = limit;
         break;
       }
@@ -258,6 +362,260 @@ function _decodeHLSResponse(bb: ByteBuffer): HLSResponse {
         message.data = readBytes(bb, readVarint32(bb));
         break;
       }
+
+      default:
+        skipUnknownField(bb, tag & 7);
+    }
+  }
+
+  return message;
+}
+
+export interface RecordRequest {
+  id?: Long;
+  start_time?: Long;
+  end_time?: Long;
+}
+
+export function encodeRecordRequest(message: RecordRequest): Uint8Array {
+  let bb = popByteBuffer();
+  _encodeRecordRequest(message, bb);
+  return toUint8Array(bb);
+}
+
+function _encodeRecordRequest(message: RecordRequest, bb: ByteBuffer): void {
+  // optional int64 id = 1;
+  let $id = message.id;
+  if ($id !== undefined) {
+    writeVarint32(bb, 8);
+    writeVarint64(bb, $id);
+  }
+
+  // optional int64 start_time = 2;
+  let $start_time = message.start_time;
+  if ($start_time !== undefined) {
+    writeVarint32(bb, 16);
+    writeVarint64(bb, $start_time);
+  }
+
+  // optional int64 end_time = 3;
+  let $end_time = message.end_time;
+  if ($end_time !== undefined) {
+    writeVarint32(bb, 24);
+    writeVarint64(bb, $end_time);
+  }
+}
+
+export function decodeRecordRequest(binary: Uint8Array): RecordRequest {
+  return _decodeRecordRequest(wrapByteBuffer(binary));
+}
+
+function _decodeRecordRequest(bb: ByteBuffer): RecordRequest {
+  let message: RecordRequest = {} as any;
+
+  end_of_message: while (!isAtEnd(bb)) {
+    let tag = readVarint32(bb);
+
+    switch (tag >>> 3) {
+      case 0:
+        break end_of_message;
+
+      // optional int64 id = 1;
+      case 1: {
+        message.id = readVarint64(bb, /* unsigned */ false);
+        break;
+      }
+
+      // optional int64 start_time = 2;
+      case 2: {
+        message.start_time = readVarint64(bb, /* unsigned */ false);
+        break;
+      }
+
+      // optional int64 end_time = 3;
+      case 3: {
+        message.end_time = readVarint64(bb, /* unsigned */ false);
+        break;
+      }
+
+      default:
+        skipUnknownField(bb, tag & 7);
+    }
+  }
+
+  return message;
+}
+
+export interface VideoRange {
+  start_time?: Long;
+  end_time?: Long;
+  file_name?: string;
+}
+
+export function encodeVideoRange(message: VideoRange): Uint8Array {
+  let bb = popByteBuffer();
+  _encodeVideoRange(message, bb);
+  return toUint8Array(bb);
+}
+
+function _encodeVideoRange(message: VideoRange, bb: ByteBuffer): void {
+  // optional int64 start_time = 1;
+  let $start_time = message.start_time;
+  if ($start_time !== undefined) {
+    writeVarint32(bb, 8);
+    writeVarint64(bb, $start_time);
+  }
+
+  // optional int64 end_time = 2;
+  let $end_time = message.end_time;
+  if ($end_time !== undefined) {
+    writeVarint32(bb, 16);
+    writeVarint64(bb, $end_time);
+  }
+
+  // optional string file_name = 3;
+  let $file_name = message.file_name;
+  if ($file_name !== undefined) {
+    writeVarint32(bb, 26);
+    writeString(bb, $file_name);
+  }
+}
+
+export function decodeVideoRange(binary: Uint8Array): VideoRange {
+  return _decodeVideoRange(wrapByteBuffer(binary));
+}
+
+function _decodeVideoRange(bb: ByteBuffer): VideoRange {
+  let message: VideoRange = {} as any;
+
+  end_of_message: while (!isAtEnd(bb)) {
+    let tag = readVarint32(bb);
+
+    switch (tag >>> 3) {
+      case 0:
+        break end_of_message;
+
+      // optional int64 start_time = 1;
+      case 1: {
+        message.start_time = readVarint64(bb, /* unsigned */ false);
+        break;
+      }
+
+      // optional int64 end_time = 2;
+      case 2: {
+        message.end_time = readVarint64(bb, /* unsigned */ false);
+        break;
+      }
+
+      // optional string file_name = 3;
+      case 3: {
+        message.file_name = readString(bb, readVarint32(bb));
+        break;
+      }
+
+      default:
+        skipUnknownField(bb, tag & 7);
+    }
+  }
+
+  return message;
+}
+
+export interface RecordResponse {
+  id?: Long;
+  records?: VideoRange[];
+}
+
+export function encodeRecordResponse(message: RecordResponse): Uint8Array {
+  let bb = popByteBuffer();
+  _encodeRecordResponse(message, bb);
+  return toUint8Array(bb);
+}
+
+function _encodeRecordResponse(message: RecordResponse, bb: ByteBuffer): void {
+  // optional int64 id = 1;
+  let $id = message.id;
+  if ($id !== undefined) {
+    writeVarint32(bb, 8);
+    writeVarint64(bb, $id);
+  }
+
+  // repeated VideoRange records = 2;
+  let array$records = message.records;
+  if (array$records !== undefined) {
+    for (let value of array$records) {
+      writeVarint32(bb, 18);
+      let nested = popByteBuffer();
+      _encodeVideoRange(value, nested);
+      writeVarint32(bb, nested.limit);
+      writeByteBuffer(bb, nested);
+      pushByteBuffer(nested);
+    }
+  }
+}
+
+export function decodeRecordResponse(binary: Uint8Array): RecordResponse {
+  return _decodeRecordResponse(wrapByteBuffer(binary));
+}
+
+function _decodeRecordResponse(bb: ByteBuffer): RecordResponse {
+  let message: RecordResponse = {} as any;
+
+  end_of_message: while (!isAtEnd(bb)) {
+    let tag = readVarint32(bb);
+
+    switch (tag >>> 3) {
+      case 0:
+        break end_of_message;
+
+      // optional int64 id = 1;
+      case 1: {
+        message.id = readVarint64(bb, /* unsigned */ false);
+        break;
+      }
+
+      // repeated VideoRange records = 2;
+      case 2: {
+        let limit = pushTemporaryLength(bb);
+        let values = message.records || (message.records = []);
+        values.push(_decodeVideoRange(bb));
+        bb.limit = limit;
+        break;
+      }
+
+      default:
+        skipUnknownField(bb, tag & 7);
+    }
+  }
+
+  return message;
+}
+
+export interface TriggerRefresh {
+}
+
+export function encodeTriggerRefresh(message: TriggerRefresh): Uint8Array {
+  let bb = popByteBuffer();
+  _encodeTriggerRefresh(message, bb);
+  return toUint8Array(bb);
+}
+
+function _encodeTriggerRefresh(message: TriggerRefresh, bb: ByteBuffer): void {
+}
+
+export function decodeTriggerRefresh(binary: Uint8Array): TriggerRefresh {
+  return _decodeTriggerRefresh(wrapByteBuffer(binary));
+}
+
+function _decodeTriggerRefresh(bb: ByteBuffer): TriggerRefresh {
+  let message: TriggerRefresh = {} as any;
+
+  end_of_message: while (!isAtEnd(bb)) {
+    let tag = readVarint32(bb);
+
+    switch (tag >>> 3) {
+      case 0:
+        break end_of_message;
 
       default:
         skipUnknownField(bb, tag & 7);
@@ -453,6 +811,350 @@ function _decodeResponse(bb: ByteBuffer): Response {
       // optional bool success = 2;
       case 2: {
         message.success = !!readByte(bb);
+        break;
+      }
+
+      default:
+        skipUnknownField(bb, tag & 7);
+    }
+  }
+
+  return message;
+}
+
+export interface Schedule {
+  days_of_week?: number[];
+  start_time?: string;
+  end_time?: string;
+}
+
+export function encodeSchedule(message: Schedule): Uint8Array {
+  let bb = popByteBuffer();
+  _encodeSchedule(message, bb);
+  return toUint8Array(bb);
+}
+
+function _encodeSchedule(message: Schedule, bb: ByteBuffer): void {
+  // repeated int32 days_of_week = 1;
+  let array$days_of_week = message.days_of_week;
+  if (array$days_of_week !== undefined) {
+    let packed = popByteBuffer();
+    for (let value of array$days_of_week) {
+      writeVarint64(packed, intToLong(value));
+    }
+    writeVarint32(bb, 10);
+    writeVarint32(bb, packed.offset);
+    writeByteBuffer(bb, packed);
+    pushByteBuffer(packed);
+  }
+
+  // optional string start_time = 2;
+  let $start_time = message.start_time;
+  if ($start_time !== undefined) {
+    writeVarint32(bb, 18);
+    writeString(bb, $start_time);
+  }
+
+  // optional string end_time = 3;
+  let $end_time = message.end_time;
+  if ($end_time !== undefined) {
+    writeVarint32(bb, 26);
+    writeString(bb, $end_time);
+  }
+}
+
+export function decodeSchedule(binary: Uint8Array): Schedule {
+  return _decodeSchedule(wrapByteBuffer(binary));
+}
+
+function _decodeSchedule(bb: ByteBuffer): Schedule {
+  let message: Schedule = {} as any;
+
+  end_of_message: while (!isAtEnd(bb)) {
+    let tag = readVarint32(bb);
+
+    switch (tag >>> 3) {
+      case 0:
+        break end_of_message;
+
+      // repeated int32 days_of_week = 1;
+      case 1: {
+        let values = message.days_of_week || (message.days_of_week = []);
+        if ((tag & 7) === 2) {
+          let outerLimit = pushTemporaryLength(bb);
+          while (!isAtEnd(bb)) {
+            values.push(readVarint32(bb));
+          }
+          bb.limit = outerLimit;
+        } else {
+          values.push(readVarint32(bb));
+        }
+        break;
+      }
+
+      // optional string start_time = 2;
+      case 2: {
+        message.start_time = readString(bb, readVarint32(bb));
+        break;
+      }
+
+      // optional string end_time = 3;
+      case 3: {
+        message.end_time = readString(bb, readVarint32(bb));
+        break;
+      }
+
+      default:
+        skipUnknownField(bb, tag & 7);
+    }
+  }
+
+  return message;
+}
+
+export interface MotionConfig {
+  sensitivity?: number;
+  pre_record_seconds?: number;
+  post_record_seconds?: number;
+}
+
+export function encodeMotionConfig(message: MotionConfig): Uint8Array {
+  let bb = popByteBuffer();
+  _encodeMotionConfig(message, bb);
+  return toUint8Array(bb);
+}
+
+function _encodeMotionConfig(message: MotionConfig, bb: ByteBuffer): void {
+  // optional int32 sensitivity = 1;
+  let $sensitivity = message.sensitivity;
+  if ($sensitivity !== undefined) {
+    writeVarint32(bb, 8);
+    writeVarint64(bb, intToLong($sensitivity));
+  }
+
+  // optional int32 pre_record_seconds = 2;
+  let $pre_record_seconds = message.pre_record_seconds;
+  if ($pre_record_seconds !== undefined) {
+    writeVarint32(bb, 16);
+    writeVarint64(bb, intToLong($pre_record_seconds));
+  }
+
+  // optional int32 post_record_seconds = 3;
+  let $post_record_seconds = message.post_record_seconds;
+  if ($post_record_seconds !== undefined) {
+    writeVarint32(bb, 24);
+    writeVarint64(bb, intToLong($post_record_seconds));
+  }
+}
+
+export function decodeMotionConfig(binary: Uint8Array): MotionConfig {
+  return _decodeMotionConfig(wrapByteBuffer(binary));
+}
+
+function _decodeMotionConfig(bb: ByteBuffer): MotionConfig {
+  let message: MotionConfig = {} as any;
+
+  end_of_message: while (!isAtEnd(bb)) {
+    let tag = readVarint32(bb);
+
+    switch (tag >>> 3) {
+      case 0:
+        break end_of_message;
+
+      // optional int32 sensitivity = 1;
+      case 1: {
+        message.sensitivity = readVarint32(bb);
+        break;
+      }
+
+      // optional int32 pre_record_seconds = 2;
+      case 2: {
+        message.pre_record_seconds = readVarint32(bb);
+        break;
+      }
+
+      // optional int32 post_record_seconds = 3;
+      case 3: {
+        message.post_record_seconds = readVarint32(bb);
+        break;
+      }
+
+      default:
+        skipUnknownField(bb, tag & 7);
+    }
+  }
+
+  return message;
+}
+
+export interface UserConfig {
+  recording_type?: RecordingType;
+  schedules?: Schedule[];
+  motion_config?: MotionConfig;
+  motion_enabled?: boolean;
+  name?: string;
+}
+
+export function encodeUserConfig(message: UserConfig): Uint8Array {
+  let bb = popByteBuffer();
+  _encodeUserConfig(message, bb);
+  return toUint8Array(bb);
+}
+
+function _encodeUserConfig(message: UserConfig, bb: ByteBuffer): void {
+  // optional RecordingType recording_type = 1;
+  let $recording_type = message.recording_type;
+  if ($recording_type !== undefined) {
+    writeVarint32(bb, 8);
+    writeVarint32(bb, encodeRecordingType[$recording_type]);
+  }
+
+  // repeated Schedule schedules = 2;
+  let array$schedules = message.schedules;
+  if (array$schedules !== undefined) {
+    for (let value of array$schedules) {
+      writeVarint32(bb, 18);
+      let nested = popByteBuffer();
+      _encodeSchedule(value, nested);
+      writeVarint32(bb, nested.limit);
+      writeByteBuffer(bb, nested);
+      pushByteBuffer(nested);
+    }
+  }
+
+  // optional MotionConfig motion_config = 3;
+  let $motion_config = message.motion_config;
+  if ($motion_config !== undefined) {
+    writeVarint32(bb, 26);
+    let nested = popByteBuffer();
+    _encodeMotionConfig($motion_config, nested);
+    writeVarint32(bb, nested.limit);
+    writeByteBuffer(bb, nested);
+    pushByteBuffer(nested);
+  }
+
+  // optional bool motion_enabled = 4;
+  let $motion_enabled = message.motion_enabled;
+  if ($motion_enabled !== undefined) {
+    writeVarint32(bb, 32);
+    writeByte(bb, $motion_enabled ? 1 : 0);
+  }
+
+  // optional string name = 5;
+  let $name = message.name;
+  if ($name !== undefined) {
+    writeVarint32(bb, 42);
+    writeString(bb, $name);
+  }
+}
+
+export function decodeUserConfig(binary: Uint8Array): UserConfig {
+  return _decodeUserConfig(wrapByteBuffer(binary));
+}
+
+function _decodeUserConfig(bb: ByteBuffer): UserConfig {
+  let message: UserConfig = {} as any;
+
+  end_of_message: while (!isAtEnd(bb)) {
+    let tag = readVarint32(bb);
+
+    switch (tag >>> 3) {
+      case 0:
+        break end_of_message;
+
+      // optional RecordingType recording_type = 1;
+      case 1: {
+        message.recording_type = decodeRecordingType[readVarint32(bb)];
+        break;
+      }
+
+      // repeated Schedule schedules = 2;
+      case 2: {
+        let limit = pushTemporaryLength(bb);
+        let values = message.schedules || (message.schedules = []);
+        values.push(_decodeSchedule(bb));
+        bb.limit = limit;
+        break;
+      }
+
+      // optional MotionConfig motion_config = 3;
+      case 3: {
+        let limit = pushTemporaryLength(bb);
+        message.motion_config = _decodeMotionConfig(bb);
+        bb.limit = limit;
+        break;
+      }
+
+      // optional bool motion_enabled = 4;
+      case 4: {
+        message.motion_enabled = !!readByte(bb);
+        break;
+      }
+
+      // optional string name = 5;
+      case 5: {
+        message.name = readString(bb, readVarint32(bb));
+        break;
+      }
+
+      default:
+        skipUnknownField(bb, tag & 7);
+    }
+  }
+
+  return message;
+}
+
+export interface Timestamp {
+  seconds?: Long;
+  nanos?: number;
+}
+
+export function encodeTimestamp(message: Timestamp): Uint8Array {
+  let bb = popByteBuffer();
+  _encodeTimestamp(message, bb);
+  return toUint8Array(bb);
+}
+
+function _encodeTimestamp(message: Timestamp, bb: ByteBuffer): void {
+  // optional int64 seconds = 1;
+  let $seconds = message.seconds;
+  if ($seconds !== undefined) {
+    writeVarint32(bb, 8);
+    writeVarint64(bb, $seconds);
+  }
+
+  // optional int32 nanos = 2;
+  let $nanos = message.nanos;
+  if ($nanos !== undefined) {
+    writeVarint32(bb, 16);
+    writeVarint64(bb, intToLong($nanos));
+  }
+}
+
+export function decodeTimestamp(binary: Uint8Array): Timestamp {
+  return _decodeTimestamp(wrapByteBuffer(binary));
+}
+
+function _decodeTimestamp(bb: ByteBuffer): Timestamp {
+  let message: Timestamp = {} as any;
+
+  end_of_message: while (!isAtEnd(bb)) {
+    let tag = readVarint32(bb);
+
+    switch (tag >>> 3) {
+      case 0:
+        break end_of_message;
+
+      // optional int64 seconds = 1;
+      case 1: {
+        message.seconds = readVarint64(bb, /* unsigned */ false);
+        break;
+      }
+
+      // optional int32 nanos = 2;
+      case 2: {
+        message.nanos = readVarint32(bb);
         break;
       }
 

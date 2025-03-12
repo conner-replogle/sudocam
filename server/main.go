@@ -38,24 +38,24 @@ func setupRoutes(db *gorm.DB) {
 	http.HandleFunc("/api/signup", handlers.HandleSignup(db))
 	http.HandleFunc("/api/login", handlers.HandleLogin(db, jwtKey))
 	http.HandleFunc("/api/logout", handlers.HandleLogout())
-	http.HandleFunc("/api/validate", handlers.ValidateToken)
+	// http.HandleFunc("/api/validate", handlers.ValidateToken)
 
 	// User routes
-	http.HandleFunc("/api/users/cameras", middleware.AuthMiddleware(handlers.UsersCameras(db)))
-	http.HandleFunc("/api/users/me", middleware.AuthMiddleware(handlers.Me(db)))
+	http.HandleFunc("/api/users/cameras", middleware.AuthMiddleware(handlers.UsersCameras(db), false))
+	http.HandleFunc("/api/users/me", middleware.AuthMiddleware(handlers.Me(db), false))
 	// Camera routes
-	http.HandleFunc("/api/cameras/generate", middleware.AuthMiddleware(handlers.HandleGenerateCamera(jwtKey)))
+	http.HandleFunc("/api/cameras/generate", middleware.AuthMiddleware(handlers.HandleGenerateCamera(jwtKey), false))
 	http.HandleFunc("/api/cameras/register", handlers.HandleRegisterCamera(db, jwtKey))
-	http.HandleFunc("/api/camera/status", handlers.UpdateCameraStatus(db))
-	http.HandleFunc("/api/camera/ping", handlers.PingCamera(db))
-	http.HandleFunc("/api/cameras/delete", middleware.AuthMiddleware(handlers.DeleteCamera(db)))
-	http.HandleFunc("/api/cameras/update", middleware.AuthMiddleware(handlers.UpdateCamera(db)))
+	http.HandleFunc("/api/cameras/delete", middleware.AuthMiddleware(handlers.DeleteCamera(db), false))
+	http.HandleFunc("/api/cameras/update", middleware.AuthMiddleware(handlers.UpdateCamera(db), false))
+	http.HandleFunc("GET /api/cameras/{id}/config", middleware.AuthMiddleware(handlers.GetCameraConfig(db), true))
 
 	// HLS video content route
-	http.HandleFunc("/api/cameras/", handlers.ServeHLSContent(db))
+	http.HandleFunc("GET /api/cameras/{id}/video/{filepath...}", middleware.AuthMiddleware(handlers.ServeHLSContent(db), false))
+	http.HandleFunc("GET /api/cameras/{id}/list", middleware.AuthMiddleware(handlers.VideoList(db), false))
 
 	// WebSocket route
-	http.HandleFunc("/ws", websocket.HandleWebSocket(db))
+	http.HandleFunc("/api/ws", websocket.HandleWebSocket(db))
 
 	// TURN credentials route
 	http.HandleFunc("/api/turn", handlers.HandleTURNCredentials())

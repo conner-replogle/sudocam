@@ -1,5 +1,4 @@
-import { Outlet, useLocation } from "react-router";
-import { Toaster } from "@/components/ui/sonner"
+import { Outlet, useLocation, useNavigate } from "react-router";
 import { AppSidebar } from "@/components/app-sidebar"
 import {
   Breadcrumb,
@@ -15,16 +14,16 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { useAuth } from "@/hooks/useAuth"
 import { WebRTCProvider } from "@/context/WebRTCContext";
 import { AppProvider } from "@/context/AppContext";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import * as React from "react";
+import { useUserContext } from "@/context/UserContext";
 
 export default function RootLayout() {
-  const { isAuthenticated, isLoading } = useAuth()
+  const {user,isLoading,isAuthenticated} = useUserContext()
   const location = useLocation();
-
+  const navigate = useNavigate();
   // Generate breadcrumb items based on the current path
   const breadcrumbItems = useMemo(() => {
     // Remove leading slash and split the path
@@ -47,12 +46,15 @@ export default function RootLayout() {
     });
   }, [location.pathname]);
 
-  if (isLoading) {
-    return <div>Loading...</div>
-  }
+  useEffect(() => {
+    if (!user && !isLoading) {
+      navigate('/auth');
+    }
+  }, [user,isLoading]);
+  console.log(user)
 
-  if (!isAuthenticated) {
-    return null // The useAuth hook will handle redirection
+  if (!user) {
+    return null;
   }
   
   return (

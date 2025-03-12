@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import { apiPost } from "@/lib/api"
+import { useUserContext } from "@/context/UserContext"
 
 // Create a global user state management or context if needed
 export interface User {
@@ -15,6 +16,7 @@ export interface User {
 }
 
 export default function Auth() {
+  const {user, refetchUser} = useUserContext()
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
 
@@ -35,7 +37,10 @@ export default function Auth() {
         localStorage.setItem('token', data.token)
         
         toast.success('Successfully logged in!')
-        navigate('/')
+        
+        refetchUser().then(() => {
+          navigate('/')
+        })
       } else {
         await apiPost('/api/signup', { name, email, password })
         toast.success('Account created! Please log in.')

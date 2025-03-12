@@ -37,11 +37,11 @@ export function CamerasListPage(){
             ) : (
                 <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                     {cameras.map((camera) => (
-                        <div key={camera.cameraUUID} className="bg-primary-foreground shadow-md rounded-lg p-4 flex flex-row">
+                        <div key={camera.id} className="bg-primary-foreground shadow-md rounded-lg p-4 flex flex-row">
                             <div className="mb-4 flex-grow">
                                 <h2 className="text-lg font-semibold text-foreground truncate" title={camera.name}>{camera.name}</h2>
-                                <p className="text-muted-foreground text-sm font-mono" title={camera.cameraUUID}>
-                                    {truncateUUID(camera.cameraUUID)}
+                                <p className="text-muted-foreground text-sm font-mono" title={camera.id}>
+                                    {truncateUUID(camera.id)}
                                 </p>
                                 <div className="flex items-center space-x-2 mt-1">
                                     <div className={`w-2 h-2 rounded-full ${camera.isOnline ? 'bg-green-500' : 'bg-red-500'}`}></div>
@@ -49,13 +49,13 @@ export function CamerasListPage(){
                                 </div>
                             </div>
                             <div className="flex space-x-2 items-center justify-end">
-                                <CameraSettings cameraUUID={camera.cameraUUID}>
+                                <CameraSettings id={camera.id}>
                                     <Button variant="outline" size="icon">
                                         <Settings className="h-4 w-4" />
                                     </Button>
                                 </CameraSettings>
                                 <Button 
-                                    onClick={() => navigate(`/cameras/${camera.cameraUUID}`)} 
+                                    onClick={() => navigate(`/cameras/${camera.id}`)} 
                                     className="bg-primary text-primary-foreground"
                                 >
                                     View

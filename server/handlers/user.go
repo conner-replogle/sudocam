@@ -12,9 +12,9 @@ import (
 
 // SafeUserResponse represents a user without sensitive fields
 type SafeUserResponse struct {
-	ID       uint   `json:"id"`
-	Name string `json:"name"`
-	Email    string `json:"email"`
+	Id    string `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
 	// Add other non-sensitive fields as needed
 }
 
@@ -25,9 +25,10 @@ func Me(db *gorm.DB) http.HandlerFunc {
 			return
 		}
 
-		userID := r.Context().Value(middleware.ContextUserKey).(uint)
+		userID := r.Context().Value(middleware.ContextUserKey).(string)
 		var user models.User
-		if err := db.First(&user, userID).Error; err != nil {
+		slog.Info("Fetching user", "user_id", userID)
+		if err := db.First(&user, "id = ?", userID).Error; err != nil {
 			slog.Error("Error fetching user", "error", err)
 			http.Error(w, "Error fetching user", http.StatusInternalServerError)
 			return
@@ -35,10 +36,9 @@ func Me(db *gorm.DB) http.HandlerFunc {
 
 		// Create a safe response without the password hash
 		safeUser := SafeUserResponse{
-			ID:       user.ID,
-			Name: user.Name,
-			Email:    user.Email,
-			// Add other fields as needed
+			Id:    user.ID,
+			Name:  user.Name,
+			Email: user.Email,
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -54,7 +54,7 @@ func UsersCameras(db *gorm.DB) http.HandlerFunc {
 			return
 		}
 
-		userID := r.Context().Value(middleware.ContextUserKey).(uint)
+		userID := r.Context().Value(middleware.ContextUserKey).(string)
 
 		var cameras []models.Camera
 		if err := db.Where("user_id = ?", userID).Find(&cameras).Error; err != nil {

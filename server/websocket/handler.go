@@ -2,13 +2,13 @@ package websocket
 
 import (
 	"errors"
-	"fmt"
+
 	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
-	"messages/msgspb"
+	"messages/jwtmsg"
 	pb "messages/msgspb"
 
 	"server/middleware"
@@ -31,7 +31,7 @@ const (
 type Connection struct {
 	Conn     *websocket.Conn
 	Type     ConnectionType
-	UserID   uint   // The user who owns this connection
+	UserID   string // The user who owns this connection
 	EntityID string // Camera UUID or user identifier
 }
 
@@ -47,11 +47,11 @@ var (
 	// Store connections with type identification
 	connections         = make(map[string]*Connection)
 	connectionsMutex    sync.Mutex
-	messageHandlers     = make(map[string]func(*msgspb.Message))
+	messageHandlers     = make(map[string]func(*pb.Message))
 	messageHandlerMutex sync.Mutex
 )
 
-func RegisterMessageHandler(messageType string, handler func(*msgspb.Message)) {
+func RegisterMessageHandler(messageType string, handler func(*pb.Message)) {
 	messageHandlerMutex.Lock()
 	defer messageHandlerMutex.Unlock()
 	messageHandlers[messageType] = handler
@@ -64,113 +64,87 @@ func HandleWebSocket(db *gorm.DB) http.HandlerFunc {
 			slog.Error("WebSocket upgrade failed", "error", err)
 			return
 		}
-
-		// Read initial message to identify connection type
-		msg := &pb.Message{}
-		if err := readProtoMessage(conn, msg); err != nil {
-			slog.Error("Failed to read initialization message", "error", err)
+		auth_token := r.URL.Query().Get("auth")
+		if auth_token == "" {
+			auth_token = r.Header.Get("Authorization")
+		}
+		if auth_token == "" {
+			slog.Error("Missing auth query/header parameter")
 			conn.Close()
 			return
 		}
+		slog.Info("WebSocket connection received", "auth_token", auth_token) //TODO DELTE
+		// Validate  token from request headers
 
-		slog.Info("received initialization message", "message", msg)
-		ident := msg.GetInitalization()
-		if ident == nil {
-			slog.Error("Invalid initialization message")
+		// Extract the token from "Bearer <token>"
+		if len(auth_token) > 7 && auth_token[:7] == "Bearer " {
+			auth_token = auth_token[7:]
+		}
+
+		claims, err := middleware.ValidateJWT(auth_token)
+		if err != nil {
+			slog.Error("Invalid authorization token")
 			conn.Close()
 			return
 		}
-		var id string
-		isUser := ident.GetIsUser()
-
+		id := claims.EntityID
+		isUser := claims.EntityType == jwtmsg.EntityTypeUser
 		// Determine connection type and authenticate
 		var connection *Connection
-		var connectionType ConnectionType
-		var userID uint
 
 		// If accountID is provided, this is likely a user connection
 		if isUser {
-			// Validate user token from request headers
-			token := ident.GetToken()
-			if token == "" {
-				slog.Error("Missing authorization token for user connection")
-				conn.Close()
-				return
-			}
 
-			// Extract the token from "Bearer <token>"
-			if len(token) > 7 && token[:7] == "Bearer " {
-				token = token[7:]
-			}
-
-			claims, err := middleware.ValidateJWT(token)
-			if err != nil {
-
-				SendProtoMessage(conn, &pb.Message{DataType: &pb.Message_Response{Response: &pb.Response{Success: false, Message: "Invalid authorization token"}}})
-				slog.Error("Invalid authorization token")
-				conn.Close()
-				return
-			}
-
-			userID = claims.UserID
-			connectionType = TypeUser
-			id = fmt.Sprintf("%d", userID)
-
-			slog.Info("User connected via WebSocket", "user_id", userID)
+			slog.Info("User connected via WebSocket", "user_id", id)
 
 			// Store user connection
 			connection = &Connection{
 				Conn:     conn,
 				Type:     TypeUser,
-				UserID:   userID,
+				UserID:   id,
 				EntityID: id,
 			}
 		} else {
-			id = ident.GetId()
 			// This is a camera connection
 			// Verify camera exists in database and get its owner
 			var camera models.Camera
-			result := db.Where("camera_uuid = ?", id).First(&camera)
+			result := db.Where("id = ?", id).First(&camera)
 			if result.Error != nil {
 
 				SendProtoMessage(conn, &pb.Message{DataType: &pb.Message_Response{Response: &pb.Response{Success: false, Message: "Camera not found in database"}}})
 
-				slog.Error("Camera not found in database", "camera_uuid", id, "error", result.Error)
+				slog.Error("Camera not found in database", "camera_id", id, "error", result.Error)
 				conn.Close()
 
 				return
 			}
 
-			connectionType = TypeCamera
-			userID = camera.UserID
-			slog.Info("Camera connected via WebSocket", "camera_uuid", id, "user_id", userID)
-
 			// Update camera status to online
 			if err := updateCameraStatus(db, id, true); err != nil {
-				slog.Error("Failed to update camera online status", "camera_uuid", id, "error", err)
+				slog.Error("Failed to update camera online status", "camera_id", id, "error", err)
 			} else {
-				slog.Info("Camera now online", "camera_uuid", id, "user_id", userID)
+				slog.Info("Camera now online", "camera_id", id, "user_id", camera.UserID)
+				err = SendRefreshToClient(camera.UserID)
+				if err != nil {
+					slog.Error("Failed to send refresh to user", "error", err)
+				}
+
 			}
 
 			// Store camera connection
 			connection = &Connection{
 				Conn:     conn,
 				Type:     TypeCamera,
-				UserID:   userID,
+				UserID:   camera.UserID,
 				EntityID: id,
 			}
 		}
-		err = SendProtoMessage(conn, &pb.Message{DataType: &pb.Message_Response{Response: &pb.Response{Success: true}}})
-		if err != nil {
-			slog.Error("Failed to send response message", "error", err)
-			conn.Close()
-			return
-		}
+
 		// Store connection
 		connectionsMutex.Lock()
 		connections[id] = connection
 		connectionsMutex.Unlock()
-		slog.Info("WebSocket connection stored", "type", connectionType, "id", id)
+		slog.Info("WebSocket connection stored", "isUser", isUser, "id", id)
 
 		defer func() {
 			connectionsMutex.Lock()
@@ -178,23 +152,27 @@ func HandleWebSocket(db *gorm.DB) http.HandlerFunc {
 			connectionsMutex.Unlock()
 
 			// Update camera status to offline when connection closes (if it's a camera)
-			if connectionType == TypeCamera {
+			if !isUser {
 				if err := updateCameraStatus(db, id, false); err != nil {
 					slog.Error("Failed to update camera offline status", "camera_uuid", id, "error", err)
 				} else {
 					slog.Info("Camera now offline", "camera_uuid", id)
+					SendRefreshToClient(connection.UserID)
+
 				}
+
 			}
 
 			conn.Close()
-			slog.Info("WebSocket connection closed", "type", connectionType, "id", id)
+			slog.Info("WebSocket connection closed", "isUser", isUser, "id", id)
 		}()
 
-		handleMessages(conn, msg, db, connection)
+		handleMessages(conn, connection)
 	}
 }
 
-func handleMessages(conn *websocket.Conn, msg *pb.Message, db *gorm.DB, sourceConn *Connection) {
+func handleMessages(conn *websocket.Conn, sourceConn *Connection) {
+	msg := &pb.Message{}
 	for {
 		err := readProtoMessage(conn, msg)
 		if err != nil {
@@ -221,32 +199,43 @@ func handleMessages(conn *websocket.Conn, msg *pb.Message, db *gorm.DB, sourceCo
 				continue
 			}
 			msg.From = sourceConn.EntityID
-		}
-
-		if msg.GetHlsResponse() != nil {
-			messageHandlerMutex.Lock()
-			handler := messageHandlers["hlsResponse"]
-			messageHandlerMutex.Unlock()
-
-			if handler != nil {
-				handler(msg)
-			} else {
-				slog.Error("No handler for HLS response")
-			}
-		}
-
-		// Handle WebRTC messages
-		if msg.GetWebrtc() != nil {
-			// Forward WebRTC messages to the specified recipient
-			if msg.To != "" && msg.To != "server" {
-				err := SendMessageToClient(msg.To, msg)
-				if err != nil {
-					slog.Error("Failed to forward WebRTC message", "error", err)
+			if msg.GetWebrtc() != nil {
+				// Forward WebRTC messages to the specified recipient
+				if msg.To != "" && msg.To != "server" {
+					err := SendMessageToClient(msg.To, msg)
+					if err != nil {
+						slog.Error("Failed to forward WebRTC message", "error", err)
+					}
+				} else {
+					slog.Error("Invalid recipient", "to", msg.To)
 				}
-			} else {
-				slog.Error("Invalid recipient", "to", msg.To)
 			}
+		} else {
+			if msg.GetHlsResponse() != nil {
+				messageHandlerMutex.Lock()
+				handler := messageHandlers["hlsResponse"]
+				messageHandlerMutex.Unlock()
+
+				if handler != nil {
+					handler(msg)
+				} else {
+					slog.Error("No handler for HLS response")
+				}
+			}
+			if msg.GetRecordResponse() != nil {
+				messageHandlerMutex.Lock()
+				handler := messageHandlers["recordResponse"]
+				messageHandlerMutex.Unlock()
+
+				if handler != nil {
+					handler(msg)
+				} else {
+					slog.Error("No handler for record response")
+				}
+			}
+
 		}
+
 	}
 }
 
@@ -277,7 +266,7 @@ func readProtoMessage(conn *websocket.Conn, message *pb.Message) error {
 func updateCameraStatus(db *gorm.DB, cameraUUID string, online bool) error {
 	now := time.Now()
 	result := db.Model(&models.Camera{}).
-		Where("camera_uuid = ?", cameraUUID).
+		Where("id = ?", cameraUUID).
 		Updates(map[string]interface{}{
 			"is_online": online,
 			"last_seen": now,
@@ -295,7 +284,7 @@ func updateCameraStatus(db *gorm.DB, cameraUUID string, online bool) error {
 }
 
 // SendMessageToClient sends a protobuf message to a specific client
-func SendMessageToClient(clientID string, message *msgspb.Message) error {
+func SendMessageToClient(clientID string, message *pb.Message) error {
 	connectionsMutex.Lock()
 	client, exists := connections[clientID]
 	connectionsMutex.Unlock()
@@ -312,4 +301,12 @@ func SendMessageToClient(clientID string, message *msgspb.Message) error {
 
 	// Send the binary message
 	return client.Conn.WriteMessage(websocket.BinaryMessage, data)
+}
+
+func SendRefreshToClient(clientID string) error {
+	return SendMessageToClient(clientID, &pb.Message{
+		DataType: &pb.Message_TriggerRefresh{
+			TriggerRefresh: &pb.TriggerRefresh{},
+		},
+	})
 }

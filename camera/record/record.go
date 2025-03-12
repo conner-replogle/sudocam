@@ -1,6 +1,7 @@
 package record
 
 import (
+	"camera/config"
 	"camera/websocket"
 	"context"
 	"fmt"
@@ -25,8 +26,10 @@ type Recorder struct {
 }
 
 // NewRecorder creates a new instance of Recorder
-func NewRecorder(cameraID, recordDir string) *Recorder {
+func NewRecorder(cfg *config.Config) *Recorder {
 	// Ensure the record directory exists
+	recordDir := cfg.RecordDir
+	cameraID := cfg.CameraUuid
 	if recordDir == "" {
 		recordDir = "recordings"
 	}
@@ -62,22 +65,16 @@ func (r *Recorder) Start(ctx context.Context) (io.Writer, error) {
 		return nil, fmt.Errorf("failed to create session directory: %w", err)
 	}
 
-	playlistPath := filepath.Join(sessionDir, "playlist.m3u8")
-	segmentPattern := filepath.Join(sessionDir, "segment_%03d.ts")
+	sessionDir = filepath.Join(sessionDir, "index.m3u8")
 
+	// err := ffmpeg.Input("pipe:",
+	// 		ffmpeg.KwArgs{"f": "h264",
+	// 		}).
+	// 		Output("recordings/", ffmpeg.KwArgs{"pix_fmt": "yuv420p"}).
+	// 		OverWriteOutput().
+	// 		WithInput(w).
+	// 		Run()
 	// Setup ffmpeg command
-	r.cmd = exec.CommandContext(
-		ctx,
-		"ffmpeg",
-		"-f", "h264", // Input format is h264
-		"-i", "pipe:0", // Read from stdin
-		"-c:v", "copy", // Copy video stream without re-encoding
-		"-hls_time", "4", // Each segment is 4 seconds
-		"-hls_list_size", "0", // Keep all segments in the playlist
-		"-hls_segment_type", "mpegts", // Use MPEG-TS for segments
-		"-hls_segment_filename", segmentPattern, // Segment filename pattern
-		playlistPath, // Output playlist
-	)
 
 	// Log the command for debugging
 	slog.Info("Starting ffmpeg recording", "command", r.cmd.String())
@@ -90,7 +87,7 @@ func (r *Recorder) Start(ctx context.Context) (io.Writer, error) {
 	r.writer = stdin
 
 	// Setup logging for ffmpeg output
-	r.cmd.Stdout = os.Stdout
+	// r.cmd.Stdout = os.Stdout
 	r.cmd.Stderr = os.Stderr
 
 	// Start the ffmpeg process
@@ -112,6 +109,43 @@ func (r *Recorder) Start(ctx context.Context) (io.Writer, error) {
 	}()
 
 	return r.writer, nil
+}
+
+func (r *Recorder) HandleRecordRequest(msg *msgspb.RecordRequest) error {
+
+	//list the directory under the cameraID
+	files, err := os.ReadDir(filepath.Join(r.recordDir, r.cameraID))
+	if err != nil {
+		return fmt.Errorf("failed to list directory: %w", err)
+	}
+
+	// Create a list of video ranges
+	var videoRanges []*msgspb.VideoRange
+	for _, file := range files {
+		if !file.IsDir() {
+			continue
+		}
+		videoRanges = append(videoRanges, &msgspb.VideoRange{
+			FileName:  file.Name(),
+			StartTime: 0,
+			EndTime:   0,
+		})
+	}
+
+	// Send the response back
+
+	return r.websocket.SendMessage(&msgspb.Message{
+		From: r.cameraID,
+		To:   "server",
+		DataType: &msgspb.Message_RecordResponse{
+			RecordResponse: &msgspb.RecordResponse{
+
+				Id:      msg.Id,
+				Records: videoRanges,
+			},
+		},
+	})
+
 }
 
 // HandleRequest processes an HLS file request and sends the file data back
@@ -168,7 +202,7 @@ func (r *Recorder) HandleRequest(msg *msgspb.HLSRequest) error {
 		DataType: &msgspb.Message_HlsResponse{
 			HlsResponse: &msgspb.HLSResponse{
 				FileName: msg.FileName,
-				Data: fileBytes,
+				Data:     fileBytes,
 			},
 		},
 	})

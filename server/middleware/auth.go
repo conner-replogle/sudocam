@@ -4,17 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"messages/jwtmsg"
 	"net/http"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
 )
-
-type Claims struct {
-	Email  string `json:"email"`
-	UserID uint   `json:"userID"`
-	jwt.RegisteredClaims
-}
 
 var jwtKey []byte
 
@@ -25,8 +21,9 @@ func SetJWTKey(key []byte) {
 type ContextKey string
 
 const ContextUserKey ContextKey = "UserID"
+const ContextClaimKey ContextKey = "Claims"
 
-func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+func AuthMiddleware(next http.HandlerFunc, cameraAllowed bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		tokenString := ExtractToken(r)
 		if tokenString == "" {
@@ -37,11 +34,19 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		claims, err := ValidateJWT(tokenString)
 		if err != nil {
 			http.Error(w, "Unauthorized User", http.StatusUnauthorized)
+			slog.Error("Error validating JWT", "error", err)
 			return
 		}
-		ctx := context.WithValue(r.Context(), ContextUserKey, claims.UserID)
+		if !cameraAllowed && claims.EntityType != jwtmsg.EntityTypeUser {
+			http.Error(w, "Unauthorized User", http.StatusUnauthorized)
+			slog.Error("Invalid Entity Type", "entity_type", claims.EntityType)
+			return
+		}
+		ctx := context.WithValue(r.Context(), ContextUserKey, claims.EntityID)
+		ctx = context.WithValue(ctx, ContextClaimKey, *claims)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
+
 	}
 }
 
@@ -57,11 +62,12 @@ func ExtractToken(r *http.Request) string {
 	if len(strings.Split(bearerToken, " ")) == 2 {
 		return strings.Split(bearerToken, " ")[1]
 	}
+	slog.Error("No token found")
 	return ""
 }
 
-func ValidateJWT(tokenString string) (*Claims, error) {
-	claims := &Claims{}
+func ValidateJWT(tokenString string) (*jwtmsg.AuthClaims, error) {
+	claims := &jwtmsg.AuthClaims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])

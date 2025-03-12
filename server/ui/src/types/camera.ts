@@ -1,10 +1,9 @@
+import { UserConfig } from '@/types/binding';
+
 export interface Camera {
-  cameraUUID: string;
+  id: string;
   name: string;
-  location?: string;
-  type?: string;
-  isOnline?: boolean;
+  isOnline: boolean;
   lastSeen?: string;
-  createdAt?: string;
-  thumbnailUrl?: string;
+  config?: UserConfig;
 }

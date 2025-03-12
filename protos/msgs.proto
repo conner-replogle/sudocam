@@ -12,6 +12,10 @@ message Message {
     Response response = 5;
     HLSRequest hls_request = 6;
     HLSResponse hls_response = 7;
+    RecordRequest record_request = 8;
+    RecordResponse record_response = 9;
+    UserConfig user_config = 10;
+    TriggerRefresh trigger_refresh = 11;
  }
 }
 
@@ -21,6 +25,27 @@ message HLSRequest{
 message HLSResponse{
   string file_name = 2;
   bytes data = 1;
+}
+
+
+
+message RecordRequest{
+  int64 id = 1;
+  int64 start_time = 2;
+  int64 end_time = 3;
+}
+message VideoRange{
+  int64 start_time = 1;
+  int64 end_time = 2;
+  string file_name = 3;
+}
+message RecordResponse{
+  int64 id = 1;
+  repeated VideoRange records = 2;
+}
+
+
+message TriggerRefresh{
 }
 
 message Webrtc{
@@ -37,4 +62,43 @@ message Initalization{
 message Response {
   string message = 1;
   bool success = 2;
+}
+
+// RecordingType enum for the available recording modes
+enum RecordingType {
+  RECORDING_TYPE_UNSPECIFIED = 0;
+  RECORDING_TYPE_OFF = 1;
+  RECORDING_TYPE_CONTINUOUS = 2;
+  RECORDING_TYPE_CONTINUOUS_SCHEDULED = 3;
+  RECORDING_TYPE_MOTION = 4;
+}
+
+// Schedule represents a time range for scheduled recording
+message Schedule {
+  repeated int32 days_of_week = 1; // Days of week (0-6, 0 is Sunday)
+  string start_time = 2;           // Format: "HH:MM" in 24-hour
+  string end_time = 3;             // Format: "HH:MM" in 24-hour
+}
+
+// MotionConfig holds configuration for motion detection recording
+message MotionConfig {
+  int32 sensitivity = 1;        // Motion detection sensitivity (1-100)
+  int32 pre_record_seconds = 2; // Seconds to record before motion detected
+  int32 post_record_seconds = 3; // Seconds to continue recording after motion stops
+}
+
+// UserConfig holds user configuration for camera recording settings
+message UserConfig {
+  RecordingType recording_type = 1;
+  repeated Schedule schedules = 2;  // Only used for RECORDING_TYPE_CONTINUOUS_SCHEDULED
+  MotionConfig motion_config = 3;   // Only used for RECORDING_TYPE_MOTION
+  bool motion_enabled = 4;
+  string name = 5;
+}
+
+
+
+message Timestamp {
+  int64 seconds = 1;
+  int32 nanos = 2;
 }

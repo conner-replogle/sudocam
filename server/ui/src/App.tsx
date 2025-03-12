@@ -8,10 +8,11 @@ import { CameraPage } from "./pages/(dashboard)/cameras/camera";
 import { GroupCameras } from "./pages/(dashboard)/groups/groups";
 import { CamerasListPage } from "./pages/(dashboard)/cameras";
 import { RecordedPage } from "./pages/(dashboard)/record/RecordedPage";
+import { UserProvider } from "./context/UserContext";
 
 function App() {
   return (
-    
+      <UserProvider>
       <Routes>
 
           <Route element={<Layout />} >
@@ -40,6 +41,7 @@ function App() {
 
         <Route path="*" element={<NoMatch />} />
       </Routes>
+      </UserProvider>
       
       
   );

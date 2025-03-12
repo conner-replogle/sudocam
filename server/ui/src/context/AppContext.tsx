@@ -2,9 +2,9 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { apiGet } from '@/lib/api';
 import { User } from '@/types/user';
 import { Camera } from '@/types/camera';
-
-
-
+import { useConnection } from '@/hooks/use-connection';
+import { Message } from '@/types/binding';
+import { useUserContext } from './UserContext';
 
 interface AppContextType {
   user: User | null;
@@ -23,24 +23,23 @@ const AppContext = createContext<AppContextType>({
 
 // Create provider component
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const { user } = useUserContext();
+
+
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Fetch user data
-  useEffect(() => {
-    async function fetchUserData() {
-      try {
-        const userData = await apiGet('/api/users/me');
-        setUser(userData);
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-        setUser(null);
-      }
-    }
 
-    fetchUserData();
-  }, []);
+  const { } = useConnection({
+    onMessage: async (message:Message) => {
+      if (message.trigger_refresh){
+        console.log("Received trigger_refresh message");
+        refetchCameras();
+      }
+    } 
+  });
+  
 
   // Function to fetch cameras
   const refetchCameras = async () => {
@@ -60,20 +59,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }
   };
-
-  // Fetch cameras when user changes
   useEffect(() => {
-    if (user) {
-      refetchCameras();
-    } else {
-      setCameras([]);
-      setLoading(false);
-    }
+    refetchCameras();
   }, [user]);
-  if (!user) {
-    return <div>Loading...</div>;
-  }
-  console.log(user)
+
 
   return (
     <AppContext.Provider value={{ user, cameras, loading, refetchCameras }}>

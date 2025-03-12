@@ -48,7 +48,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
          
           ...cameras.map(camera => ({
             title: camera.name,
-            url: `/cameras/${camera.cameraUUID}`,
+            url: `/cameras/${camera.id}`,
             tag: () => (camera.isOnline ? null:  <Badge variant={"destructive"}>Offline</Badge>),
           
           }))

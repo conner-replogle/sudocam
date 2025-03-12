@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"log/slog"
 	pb "messages/msgspb"
+	"net/http"
 	"net/url"
-	"os"
+
 	"sync"
 	"time"
 
@@ -34,7 +35,7 @@ func (w *ThreadSafeWriter) writeMessage(messageType int, data []byte) error {
 type WebsocketManager struct {
 	Writer         *ThreadSafeWriter
 	conn           *websocket.Conn
-	CameraUuid     string
+	config         *config.Config
 	ServerUrl      *url.URL
 	WSServerURL    *url.URL
 	connected      bool
@@ -43,16 +44,16 @@ type WebsocketManager struct {
 	stopReconnect  chan struct{}
 }
 
-func NewWebsocketManager(u *url.URL, camera_uuid string) *WebsocketManager {
+func NewWebsocketManager(u *url.URL, config *config.Config) *WebsocketManager {
 	websocketUrl, _ := u.Parse(u.String())
 	websocketUrl.Scheme = "ws"
 	if u.Scheme == "https" {
 		websocketUrl.Scheme = "wss"
 	}
-	websocketUrl.Path = "/ws"
+	websocketUrl.Path = "/api/ws"
 
 	manager := &WebsocketManager{
-		CameraUuid:    camera_uuid,
+		config:        config,
 		ServerUrl:     u,
 		WSServerURL:   websocketUrl,
 		connected:     false,
@@ -67,8 +68,10 @@ func NewWebsocketManager(u *url.URL, camera_uuid string) *WebsocketManager {
 
 func (manager *WebsocketManager) connect() bool {
 	slog.Info("connecting to websocket", "url", manager.WSServerURL.String())
+	header := http.Header{}
+	header.Add("Authorization", manager.config.Token)
 
-	c, _, err := websocket.DefaultDialer.Dial(manager.WSServerURL.String(), nil)
+	c, _, err := websocket.DefaultDialer.Dial(manager.WSServerURL.String(), header)
 	if err != nil {
 		slog.Error("dial failed:", "error", err)
 		return false
@@ -79,43 +82,6 @@ func (manager *WebsocketManager) connect() bool {
 	manager.conn = c
 	manager.connected = true
 
-	// Send initialization message
-	err = manager.SendMessage(&pb.Message{
-		From: manager.CameraUuid,
-		To:   "server",
-		DataType: &pb.Message_Initalization{
-			Initalization: &pb.Initalization{
-				Id: manager.CameraUuid,
-			},
-		},
-	})
-
-	if err != nil {
-		slog.Error("failed to send initialization message:", "error", err)
-		manager.connected = false
-		c.Close()
-		return false
-	}
-
-	msg, err := manager.ReadMessage()
-	if err != nil {
-		slog.Error("failed to read initialization response:", "error", err)
-		manager.connected = false
-		c.Close()
-		return false
-	}
-	response := msg.GetResponse()
-	if response == nil || !response.Success {
-		if !response.Success {
-			slog.Error("We are not authorized to connect to the server")
-			config.DeleteConfig("config.json")
-			os.Exit(1)
-		}
-		slog.Error("server failed to acknowledge initialization")
-		manager.connected = false
-		c.Close()
-		return false
-	}
 
 	slog.Info("websocket connection established")
 	return true
@@ -238,7 +204,7 @@ func (manager *WebsocketManager) SendMessage(message *pb.Message) error {
 func (manager *WebsocketManager) SendWebRTCMessage(payload any, to string) error {
 
 	message := &pb.Message{
-		From: manager.CameraUuid,
+		From: manager.config.CameraUuid,
 		To:   to,
 		DataType: &pb.Message_Webrtc{
 			Webrtc: &pb.Webrtc{

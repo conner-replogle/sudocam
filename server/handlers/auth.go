@@ -2,13 +2,13 @@ package handlers
 
 import (
 	"encoding/json"
+	"messages/jwtmsg"
 	"net/http"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 
-	"server/middleware"
 	"server/models"
 
 	"gorm.io/gorm"
@@ -72,8 +72,9 @@ func HandleLogin(db *gorm.DB, jwtKey []byte) http.HandlerFunc {
 
 		// Create a JWT token
 		expirationTime := time.Now().Add(24 * time.Hour)
-		claims := &middleware.Claims{
-			UserID: user.ID,
+		claims := &jwtmsg.AuthClaims{
+			EntityID:   user.ID,
+			EntityType: jwtmsg.EntityTypeUser,
 			RegisteredClaims: jwt.RegisteredClaims{
 				ExpiresAt: jwt.NewNumericDate(expirationTime),
 			},
@@ -104,6 +105,7 @@ func HandleLogin(db *gorm.DB, jwtKey []byte) http.HandlerFunc {
 		})
 	}
 }
+
 // HandleLogout clears the authentication cookie
 func HandleLogout() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -123,36 +125,36 @@ func HandleLogout() http.HandlerFunc {
 		w.Write([]byte(`{"success": true}`))
 	}
 }
-func ValidateToken(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 
-	tokenString := middleware.ExtractToken(r)
-	if tokenString == "" {
-		json.NewEncoder(w).Encode(models.TokenResponse{Valid: false})
-		return
-	}
+// func ValidateToken(w http.ResponseWriter, r *http.Request) {
+// 	if r.Method != http.MethodGet {
+// 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+// 		return
+// 	}
 
-	claims, err := middleware.ValidateJWT(tokenString)
-	if err != nil {
-		http.SetCookie(w, &http.Cookie{
-			Name:     "auth_token",
-			Value:    "",
-			Expires:  time.Now().Add(-1 * time.Hour), // Set to past time
-			HttpOnly: true,
-			Path:     "/",
-			SameSite: http.SameSiteStrictMode,
-			// Secure: true, // Enable in production with HTTPS
-		})
-		json.NewEncoder(w).Encode(models.TokenResponse{Valid: false})
-		return
-	}
+// 	tokenString := middleware.ExtractToken(r)
+// 	if tokenString == "" {
+// 		json.NewEncoder(w).Encode(models.TokenResponse{Valid: false})
+// 		return
+// 	}
 
+// 	claims, err := middleware.ValidateJWT(tokenString)
+// 	if err != nil {
+// 		http.SetCookie(w, &http.Cookie{
+// 			Name:     "auth_token",
+// 			Value:    "",
+// 			Expires:  time.Now().Add(-1 * time.Hour), // Set to past time
+// 			HttpOnly: true,
+// 			Path:     "/",
+// 			SameSite: http.SameSiteStrictMode,
+// 			// Secure: true, // Enable in production with HTTPS
+// 		})
+// 		json.NewEncoder(w).Encode(models.TokenResponse{Valid: false})
+// 		return
+// 	}
 
-	json.NewEncoder(w).Encode(models.TokenResponse{
-		Valid: true,
-		Email: claims.Email,
-	})
-}
+// 	json.NewEncoder(w).Encode(models.TokenResponse{
+// 		Valid: true,
+// 		Email: claims.Email,
+// 	})
+// }

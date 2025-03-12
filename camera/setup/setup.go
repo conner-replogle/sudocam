@@ -196,11 +196,13 @@ func processJWT(jwtToken string) *config.Config {
 		slog.Error("Unexpected status code", "status", resp.StatusCode)
 		return nil
 	}
+	jwtToken = resp.Header.Get("Authorization")
 
 	return &config.Config{
 		Addr:       claims.ServerURL,
 		CameraUuid: cameraUUID.String(),
 		CameraName: claims.FriendlyName,
+		Token:      jwtToken,
 	}
 }
 
