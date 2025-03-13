@@ -9,14 +9,12 @@ package main
 
 import (
 	"camera/config"
-	"camera/record"
-	"camera/setup"
-	"camera/stream"
+ 	"camera/setup"
 	"camera/webrtc"
 	"camera/websocket"
-	"context"
+
 	"flag"
-	"io"
+
 	"log/slog"
 	"messages/msgspb"
 	"net/url"
@@ -57,12 +55,10 @@ func main() { //nolint
 			os.Exit(1)
 		}
 		slog.Info("Setup Completed")
-		if !*debugMode {
-			cfg.SaveConfig(*configFile)
-			slog.Info("Config saved")
-		} else {
-			slog.Info("Config not saved (--no-save-config flag used)")
-		}
+		
+		cfg.SaveConfig(*configFile)
+		slog.Info("Config saved")
+	
 	}
 	slog.Info("Config loaded")
 
@@ -75,12 +71,10 @@ func main() { //nolint
 
 		proto.Reset(&cfg.UserConfig)
 		proto.Merge(&cfg.UserConfig, userConfig)
-		if !*debugMode {
-			cfg.SaveConfig(*configFile)
-			slog.Info("Config saved")
-		} else {
-			slog.Info("Config not saved (--no-save-config flag used)")
-		}
+	
+		cfg.SaveConfig(*configFile)
+		slog.Info("Config saved")
+	
 	} else {
 		slog.Info("User config not updated")
 	}
@@ -104,52 +98,9 @@ func main() { //nolint
 }
 
 func Run(ws *websocket.WebsocketManager, cfg *config.Config, rtc *webrtc.WebRTCManager) {
-	// Initialize the recorder
-	recorder := record.NewRecorder(cfg)
-	recorder.SetWebsocketManager(ws)
+	
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel() // Ensure cleanup when function exits
-	// Create pipes for WebRTC and recording
-	rtcReader, rtcWriter := io.Pipe()
-
-	// // Start the recorder
-	recordWriter := io.Discard
-	if cfg.UserConfig.RecordingType == msgspb.RecordingType_RECORDING_TYPE_UNSPECIFIED || cfg.UserConfig.RecordingType == msgspb.RecordingType_RECORDING_TYPE_OFF {
-		slog.Info("Recording Off")
-	} else {
-		record, err := recorder.Start(ctx)
-		if err != nil {
-			slog.Error("Failed to start recorder", "error", err)
-			os.Exit(1)
-		}
-		recordWriter = record
-	}
-
-	// Use MultiWriter to send video stream to both WebRTC and the recorder
-	multiWriter := io.MultiWriter(rtcWriter, recordWriter)
-
-	// Start camera stream
-	stream.Video(ctx, stream.CameraOptions{
-		Width:       1920,
-		Height:      1080,
-		Fps:         30,
-		BitRate:     10000000,
-		AutoFocus:   true,
-		PostProcess: true,
-
-		CameraType: stream.CameraTypeAuto,
-	}, multiWriter)
-
-	// Start WebRTC stream
-	rtc.StartCamera(rtcReader)
-
-	// Setup clean shutdown
-	defer func() {
-		if err := recorder.Stop(); err != nil {
-			slog.Error("Error stopping recorder", "error", err)
-		}
-	}()
+	rtc.StartCamera()
 
 	// Main message handling loop
 	for {
@@ -167,13 +118,13 @@ func Run(ws *websocket.WebsocketManager, cfg *config.Config, rtc *webrtc.WebRTCM
 				slog.Error("Error handling WebRTC message", "error", err)
 			}
 		case *msgspb.Message_HlsRequest:
-			if err = recorder.HandleRequest(message.GetHlsRequest()); err != nil {
-				slog.Error("Error handling message", "error", err)
-			}
+			// if err = recorder.HandleRequest(message.GetHlsRequest()); err != nil {
+			// 	slog.Error("Error handling message", "error", err)
+			// }
 		case *msgspb.Message_RecordRequest:
-			if err = recorder.HandleRecordRequest(message.GetRecordRequest()); err != nil {
-				slog.Error("Error handling message", "error", err)
-			}
+			// if err = recorder.HandleRecordRequest(message.GetRecordRequest()); err != nil {
+			// 	slog.Error("Error handling message", "error", err)
+			// }
 
 		case *msgspb.Message_UserConfig:
 			// Update user config
@@ -184,7 +135,7 @@ func Run(ws *websocket.WebsocketManager, cfg *config.Config, rtc *webrtc.WebRTCM
 			}
 
 			if cfg.UserConfig.RecordingType != userConfig.RecordingType {
-				recorder.Stop()
+				// recorder.Stop()
 
 			}
 

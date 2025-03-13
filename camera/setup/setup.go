@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"camera/config"
-	"camera/stream"
-	"context"
+	// "camera/stream"
+	// "context"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -59,22 +59,22 @@ func setupWifi(network, password string) error {
 
 // RunSetupWithQRCode runs the setup process by scanning a QR code from the camera
 func RunSetupWithQRCode(debugMode bool) *config.Config {
-	opt := stream.CameraOptions{
-		Width:      1280,
-		Height:     720,
-		Fps:        30,
-		AutoFocus:  true,
-		UseMjpeg:   true,
-		CameraType: stream.CameraTypeAuto,
-	}
+	// opt := stream.CameraOptions{
+	// 	Width:      1280,
+	// 	Height:     720,
+	// 	Fps:        30,
+	// 	AutoFocus:  true,
+	// 	UseMjpeg:   true,
+	// 	CameraType: stream.CameraTypeAuto,
+	// }
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel() // Ensure cleanup when function exits
+	// ctx, cancel := context.WithCancel(context.Background())
+	// defer cancel() // Ensure cleanup when function exits
 
 	r, w := io.Pipe()
 
 	var debugServer *MJPEGServer
-	var streamWriter io.Writer = w
+	// var streamWriter io.Writer = w
 
 	// Set up debug HTTP server if debug mode is enabled
 	if debugMode {
@@ -82,11 +82,11 @@ func RunSetupWithQRCode(debugMode bool) *config.Config {
 		debugServer.Start()
 
 		// Create a multi-writer to send data to both the QR scanner and the debug server
-		streamWriter = io.MultiWriter(w, debugServer.Writer())
+		// streamWriter = io.MultiWriter(w, debugServer.Writer())
 		slog.Info("Debug mode enabled - view stream at http://localhost:8080")
 	}
 
-	stream.Video(ctx, opt, streamWriter)
+	// stream.Video(ctx, opt, streamWriter)
 
 	for {
 		img, err := jpeg.Decode(r)

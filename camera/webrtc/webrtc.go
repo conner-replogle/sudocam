@@ -1,18 +1,17 @@
 package webrtc
 
 import (
+	"camera/stream"
 	"camera/websocket"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	
 	"log/slog"
 	pb "messages/msgspb"
 	"time"
 
 	"github.com/pion/webrtc/v4"
-	"github.com/pion/webrtc/v4/pkg/media"
-	"github.com/pion/webrtc/v4/pkg/media/h264reader"
 )
 
 const (
@@ -32,45 +31,13 @@ func NewWebRTCManager(ws *websocket.WebsocketManager) *WebRTCManager {
 	}
 }
 
-func (manager *WebRTCManager) StartCamera(r *io.PipeReader) {
+func (manager *WebRTCManager) StartCamera() {
 	videoTrack, videoTrackErr := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264}, "video", "sudocam")
 	if videoTrackErr != nil {
 		panic(videoTrackErr)
 	}
 
-	go func() {
-		// Open a H264 file and start reading using our IVFReader
-
-		h264, h264Err := h264reader.NewReader(r)
-		if h264Err != nil {
-			panic(h264Err)
-		}
-
-		// Wait for connection established
-
-		// Send our video file frame at a time. Pace our sending so we send it at the same speed it should be played back as.
-		// This isn't required since the video is timestamped, but we will such much higher loss if we send all at once.
-		//
-		// It is important to use a time.Ticker instead of time.Sleep because
-		// * avoids accumulating skew, just calling time.Sleep didn't compensate for the time spent parsing the data
-		// * works around latency issues with Sleep (see https://github.com/golang/go/issues/44343)
-		ticker := time.NewTicker(h264FrameDuration)
-		slog.Info("Reading h264")
-		for ; true; <-ticker.C {
-			nal, h264Err := h264.NextNAL()
-			if errors.Is(h264Err, io.EOF) {
-				fmt.Printf("All video frames parsed and sent")
-			}
-			if h264Err != nil {
-				panic(h264Err)
-			}
-
-			if h264Err = videoTrack.WriteSample(media.Sample{Data: nal.Data, Duration: h264FrameDuration}); h264Err != nil {
-				panic(h264Err)
-			}
-		}
-
-	}()
+	stream.Video(videoTrack)
 	manager.videoTrack = videoTrack
 }
 
