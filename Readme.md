@@ -46,8 +46,6 @@ Need to redo from websocket to grpc
  For QR Code We will just use the V4l2 interface and lowkey we can prolly make this a binary 
 
 
- **ONLY ISSUE** 
- We need to run ai on this shit
 
 
  https://friendlyuser.github.io/posts/tech/go/how_to_call_c_cplusplus_from_go/
