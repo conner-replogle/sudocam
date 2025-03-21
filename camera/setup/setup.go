@@ -4,13 +4,16 @@ import (
 	"bufio"
 	"bytes"
 	"camera/config"
+	"camera/stream"
+	"context"
+	"time"
+
 	// "camera/stream"
 	// "context"
 	"encoding/json"
 	"fmt"
-	"image"
+
 	"image/jpeg"
-	"io"
 	"log/slog"
 	"messages/jwtmsg"
 	"net/http"
@@ -24,17 +27,6 @@ import (
 	"github.com/makiuchi-d/gozxing"
 	"github.com/makiuchi-d/gozxing/qrcode"
 )
-
-// ScanQRCode attempts to decode a QR code from the provided image
-func ScanQRCode(img image.Image) *gozxing.Result {
-	// prepare BinaryBitmap
-	bmp, _ := gozxing.NewBinaryBitmapFromImage(img)
-
-	// decode image
-	qrReader := qrcode.NewQRCodeReader()
-	result, _ := qrReader.Decode(bmp, nil)
-	return result
-}
 
 // setupWifi configures WiFi using the provided network name and password
 func setupWifi(network, password string) error {
@@ -59,52 +51,99 @@ func setupWifi(network, password string) error {
 
 // RunSetupWithQRCode runs the setup process by scanning a QR code from the camera
 func RunSetupWithQRCode(debugMode bool) *config.Config {
-	// opt := stream.CameraOptions{
-	// 	Width:      1280,
-	// 	Height:     720,
-	// 	Fps:        30,
-	// 	AutoFocus:  true,
-	// 	UseMjpeg:   true,
-	// 	CameraType: stream.CameraTypeAuto,
-	// }
-
-	// ctx, cancel := context.WithCancel(context.Background())
-	// defer cancel() // Ensure cleanup when function exits
-
-	r, w := io.Pipe()
-
-	var debugServer *MJPEGServer
-	// var streamWriter io.Writer = w
-
-	// Set up debug HTTP server if debug mode is enabled
+	var mjpegServer *MJPEGServer = nil
 	if debugMode {
-		debugServer = NewMJPEGServer(8080)
-		debugServer.Start()
-
-		// Create a multi-writer to send data to both the QR scanner and the debug server
-		// streamWriter = io.MultiWriter(w, debugServer.Writer())
-		slog.Info("Debug mode enabled - view stream at http://localhost:8080")
+		mjpegServer = NewMJPEGServer(8080)
+		mjpegServer.Start()
 	}
 
-	// stream.Video(ctx, opt, streamWriter)
+	// Create a context with cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // Ensure we clean up resources
 
-	for {
-		img, err := jpeg.Decode(r)
-		if err != nil {
-			slog.Info("Error decoding image", slog.Any("error", err))
-			continue
+	// Channel to receive the config once QR code is processed
+	configCh := make(chan *config.Config, 1)
+
+	// Channel to hold the latest JPEG frame
+	latestFrame := make(chan []byte, 1) // Buffered channel to hold the latest frame
+
+	// Create a JPEG handler that sends the latest frame to the channel
+	jpegHandler := func(data []byte, duration time.Duration) bool {
+		// If in debug mode, send frames to MJPEG server
+		if debugMode && mjpegServer != nil {
+			mjpegServer.writer1.Write(data)
 		}
 
-		result := ScanQRCode(img)
-		if result != nil {
-			slog.Info("QR Code found")
-			jwtToken := result.GetText()
-
-			r.Close() // Close the pipe reader
-			w.Close() // Close the pipe writer
-
-			return processJWT(jwtToken)
+		select {
+		case latestFrame <- data: // Send the new frame
+		default: // Drop the new frame if the channel is full (already processing)
+			slog.Debug("Dropping frame, processing previous")
 		}
+		return true // Continue processing
+	}
+
+	// Start the video stream with our handler
+	stream.Video(ctx, jpegHandler, stream.JPEGMedia)
+
+	// Launch a goroutine to process frames from the channel
+	go func() {
+		qrReader := qrcode.NewQRCodeReader()
+		hints := map[gozxing.DecodeHintType]interface{}{}
+		for {
+			select {
+			case frameData := <-latestFrame:
+				slog.Debug("Processing JPEG frame", "size", len(frameData))
+				// data,err := bimg.NewImage(frameData).Resize(640, 480)
+
+				// if err != nil {
+				// 	slog.Info("Error resizing image", "error", err)
+				// 	continue // Continue processing next frame
+				// }
+				img, err := jpeg.Decode(bytes.NewReader(frameData))
+
+				if err != nil {
+					slog.Info("Error decoding jpeg image", "error", err)
+					continue // Continue processing next frame
+				}
+				if debugMode {
+					mjpegServer.writer2.Write(frameData)
+				}
+
+				bmp, _ := gozxing.NewBinaryBitmapFromImage(img)
+			
+				qrReader.Reset()
+				result, err := qrReader.Decode(bmp, hints)
+				if err != nil {
+					slog.Info("Error decoding QR code", "error", err)
+					continue // Continue processing next frame
+				}
+
+				slog.Info("QR Code found", "text_length", len(result.GetText()))
+				jwtToken := result.GetText()
+
+				// Process the JWT and send the resulting config
+				if config := processJWT(jwtToken); config != nil {
+					configCh <- config
+					cancel() // Stop the video stream
+					return   // Exit goroutine
+				}
+
+			case <-ctx.Done():
+				slog.Info("Stopping frame processing due to context cancellation")
+				return // Exit goroutine
+			}
+		}
+	}()
+
+	// Wait for either the config to be received or a timeout
+	select {
+	case config := <-configCh:
+		slog.Info("Configuration received, stopping setup")
+		return config
+	case <-time.After(60*5 * time.Second):
+		slog.Error("QR code scan timed out after 120 seconds")
+		cancel() // Stop the video stream
+		return nil
 	}
 }
 

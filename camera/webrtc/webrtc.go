@@ -3,10 +3,11 @@ package webrtc
 import (
 	"camera/stream"
 	"camera/websocket"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	
+
 	"log/slog"
 	pb "messages/msgspb"
 	"time"
@@ -36,8 +37,10 @@ func (manager *WebRTCManager) StartCamera() {
 	if videoTrackErr != nil {
 		panic(videoTrackErr)
 	}
+	
 
-	stream.Video(videoTrack)
+	ctx := context.Background()
+	stream.CreateH264VideoStream(ctx, videoTrack)
 	manager.videoTrack = videoTrack
 }
 
@@ -83,7 +86,11 @@ func (manager *WebRTCManager) CreatePeerConnection(client_uuid string) *webrtc.P
 	// This will notify you when the peer has connected/disconnected
 	peerConnection.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
 		fmt.Printf("ICE Connection State has changed: %s\n", connectionState.String())
+
 	})
+
+	// We don't need to reload the entire stream when a new client connects
+	// Instead, we'll send the cached I-frames once the connection is established
 	rtpSender, videoTrackErr := peerConnection.AddTrack(manager.videoTrack)
 	if videoTrackErr != nil {
 		panic(videoTrackErr)
@@ -112,7 +119,6 @@ func (manager *WebRTCManager) HandleMessage(msg *pb.Webrtc, from string) error {
 		candidate webrtc.ICECandidateInit
 		offer     webrtc.SessionDescription
 	)
-
 
 	switch {
 	// Attempt to unmarshal as a SessionDescription. If the SDP field is empty

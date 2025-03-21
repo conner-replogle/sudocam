@@ -27,7 +27,7 @@ export function CameraPage() {
             </div>
             <div className="relative aspect-w-16 aspect-h-9 flex-col justify-center items-center">
                 {camera.isOnline ? (
-                <VideoStream showStats={false}  camera_uuid={camera.id} />
+                <VideoStream showStats={true}  camera_uuid={camera.id} />
                 ) : (
                 <div className="text-center text-muted-foreground">
                     <p>Camera offline</p>
