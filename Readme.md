@@ -56,3 +56,10 @@ Need to redo from websocket to grpc
 
  Camera -> Golang Binary -> Run AI on it => Encode h264 On raw frame or with boxes ->  WebRTC Video Track
                                                                                     \=> Storing Video Data
+
+
+
+RECORDING FLOW
+
+**RECORDING** Incoming h264 Data from socket =>>>> Take it and store in clips labeled by TIMESTAMP-TIMESTAMP.mp4 (ENCRYPTED) 
+**VIEWING** WEBRTC CONNECTION =>> DATACHANNEL =>> DataChannel Gives Time POS => Webrtc Video Track moves and starts playing that clip into the stream =>>> PROFFITTTT!!!
