@@ -9,8 +9,10 @@ require (
 	github.com/bluenviron/mediacommon v1.14.0 // indirect
 	github.com/h2non/bimg v1.1.9 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
+	github.com/swdee/go-rknnlite v0.0.0-20250224045641-066658caecd7 // indirect
 	github.com/u2takey/ffmpeg-go v0.5.0 // indirect
 	github.com/u2takey/go-utils v0.3.1 // indirect
+	gocv.io/x/gocv v0.41.0 // indirect
 )
 
 require (

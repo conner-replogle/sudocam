@@ -1,34 +1,33 @@
 package webrtc
 
 import (
+	"camera/stepper"
 	"camera/stream"
 	"camera/websocket"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"log/slog"
 	pb "messages/msgspb"
-	"time"
 
 	"github.com/pion/webrtc/v4"
-)
-
-const (
-	h264FrameDuration = time.Millisecond * 33
 )
 
 type WebRTCManager struct {
 	Websocket   *websocket.WebsocketManager
 	connections map[string]*webrtc.PeerConnection
 	videoTrack  webrtc.TrackLocal
+	mvt         *stepper.MovementManager
 }
 
-func NewWebRTCManager(ws *websocket.WebsocketManager) *WebRTCManager {
+func NewWebRTCManager(ws *websocket.WebsocketManager, mvt *stepper.MovementManager) *WebRTCManager {
 	return &WebRTCManager{
 		Websocket:   ws,
 		connections: make(map[string]*webrtc.PeerConnection),
+		mvt:         mvt,
 	}
 }
 
@@ -37,7 +36,6 @@ func (manager *WebRTCManager) StartCamera() {
 	if videoTrackErr != nil {
 		panic(videoTrackErr)
 	}
-	
 
 	ctx := context.Background()
 	stream.CreateH264VideoStream(ctx, videoTrack)
@@ -96,6 +94,19 @@ func (manager *WebRTCManager) CreatePeerConnection(client_uuid string) *webrtc.P
 		panic(videoTrackErr)
 	}
 
+	peerConnection.OnDataChannel(func(dc *webrtc.DataChannel) {
+		slog.Info("Data Channel established", "name", dc.Label())
+		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			steps, err := strconv.Atoi(string(msg.Data))
+			if err != nil {
+				slog.Error("Failed to convert message data to integer", "error", err)
+				return
+			}
+			slog.Debug("Recieved message", "steps", steps)
+			manager.mvt.MoveTilt(steps)
+		})
+		
+	})
 	// Read incoming RTCP packets
 	// Before these packets are returned they are processed by interceptors. For things
 	// like NACK this needs to be called.

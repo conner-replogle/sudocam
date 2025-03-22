@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router";
 import { CameraSettings } from "@/components/camera-settings";
 import { Button } from "@/components/ui/button";
 import { Settings } from "lucide-react";
+import { MovementControls } from "@/components/Movement";
 
 export function CameraPage() {
     const { id } = useParams();
@@ -27,7 +28,10 @@ export function CameraPage() {
             </div>
             <div className="relative aspect-w-16 aspect-h-9 flex-col justify-center items-center">
                 {camera.isOnline ? (
+                    <>
                 <VideoStream showStats={true}  camera_uuid={camera.id} />
+                <MovementControls camera_uuid={camera.id} />
+                </>
                 ) : (
                 <div className="text-center text-muted-foreground">
                     <p>Camera offline</p>
