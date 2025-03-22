@@ -40,8 +40,8 @@ Need to redo from websocket to grpc
 
 
  Create this binary https://github.com/LuckfoxTECH/luckfox_pico_rkmpi_example the rtsp example
- this replaces libcamera-vid shit and it streams to unix socket instead of through serial
- We read this shit and it goes to the webrtc stream
+ this replaces libcamera-vid  and it streams to unix socket instead of through serial
+ We read this  and it goes to the webrtc stream
 
  For QR Code We will just use the V4l2 interface and lowkey we can prolly make this a binary 
 
