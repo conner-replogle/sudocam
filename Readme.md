@@ -20,10 +20,10 @@ Need to redo from websocket to grpc
  - [X] Fix Docker
  - [ ] Camera crashing...
  - [ ] Get IR and Wide angle
- - [ ] motorized movement
- - [ ] new case
+ - [X] motorized movement
+ - [X] new case
  - [ ] Microphone
- - [ ] Config params for camera (Motors, etc)
+ - [X] Config params for camera (Motors, etc)
 
 
  
