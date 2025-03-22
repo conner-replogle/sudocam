@@ -1,76 +1,44 @@
 package webrtc
 
 import (
+	"camera/stepper"
+	"camera/stream"
 	"camera/websocket"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"strconv"
+
 	"log/slog"
 	pb "messages/msgspb"
-	"time"
 
 	"github.com/pion/webrtc/v4"
-	"github.com/pion/webrtc/v4/pkg/media"
-	"github.com/pion/webrtc/v4/pkg/media/h264reader"
-)
-
-const (
-	h264FrameDuration = time.Millisecond * 33
 )
 
 type WebRTCManager struct {
 	Websocket   *websocket.WebsocketManager
 	connections map[string]*webrtc.PeerConnection
 	videoTrack  webrtc.TrackLocal
+	mvt         *stepper.MovementManager
 }
 
-func NewWebRTCManager(ws *websocket.WebsocketManager) *WebRTCManager {
+func NewWebRTCManager(ws *websocket.WebsocketManager, mvt *stepper.MovementManager) *WebRTCManager {
 	return &WebRTCManager{
 		Websocket:   ws,
 		connections: make(map[string]*webrtc.PeerConnection),
+		mvt:         mvt,
 	}
 }
 
-func (manager *WebRTCManager) StartCamera(r *io.PipeReader) {
+func (manager *WebRTCManager) StartCamera() {
 	videoTrack, videoTrackErr := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264}, "video", "sudocam")
 	if videoTrackErr != nil {
 		panic(videoTrackErr)
 	}
 
-	go func() {
-		// Open a H264 file and start reading using our IVFReader
-
-		h264, h264Err := h264reader.NewReader(r)
-		if h264Err != nil {
-			panic(h264Err)
-		}
-
-		// Wait for connection established
-
-		// Send our video file frame at a time. Pace our sending so we send it at the same speed it should be played back as.
-		// This isn't required since the video is timestamped, but we will such much higher loss if we send all at once.
-		//
-		// It is important to use a time.Ticker instead of time.Sleep because
-		// * avoids accumulating skew, just calling time.Sleep didn't compensate for the time spent parsing the data
-		// * works around latency issues with Sleep (see https://github.com/golang/go/issues/44343)
-		ticker := time.NewTicker(h264FrameDuration)
-		slog.Info("Reading h264")
-		for ; true; <-ticker.C {
-			nal, h264Err := h264.NextNAL()
-			if errors.Is(h264Err, io.EOF) {
-				fmt.Printf("All video frames parsed and sent")
-			}
-			if h264Err != nil {
-				panic(h264Err)
-			}
-
-			if h264Err = videoTrack.WriteSample(media.Sample{Data: nal.Data, Duration: h264FrameDuration}); h264Err != nil {
-				panic(h264Err)
-			}
-		}
-
-	}()
+	ctx := context.Background()
+	stream.CreateH264VideoStream(ctx, videoTrack)
 	manager.videoTrack = videoTrack
 }
 
@@ -116,12 +84,29 @@ func (manager *WebRTCManager) CreatePeerConnection(client_uuid string) *webrtc.P
 	// This will notify you when the peer has connected/disconnected
 	peerConnection.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
 		fmt.Printf("ICE Connection State has changed: %s\n", connectionState.String())
+
 	})
+
+	// We don't need to reload the entire stream when a new client connects
+	// Instead, we'll send the cached I-frames once the connection is established
 	rtpSender, videoTrackErr := peerConnection.AddTrack(manager.videoTrack)
 	if videoTrackErr != nil {
 		panic(videoTrackErr)
 	}
 
+	peerConnection.OnDataChannel(func(dc *webrtc.DataChannel) {
+		slog.Info("Data Channel established", "name", dc.Label())
+		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			steps, err := strconv.Atoi(string(msg.Data))
+			if err != nil {
+				slog.Error("Failed to convert message data to integer", "error", err)
+				return
+			}
+			slog.Debug("Recieved message", "steps", steps)
+			manager.mvt.MoveTilt(steps)
+		})
+		
+	})
 	// Read incoming RTCP packets
 	// Before these packets are returned they are processed by interceptors. For things
 	// like NACK this needs to be called.
@@ -145,7 +130,6 @@ func (manager *WebRTCManager) HandleMessage(msg *pb.Webrtc, from string) error {
 		candidate webrtc.ICECandidateInit
 		offer     webrtc.SessionDescription
 	)
-
 
 	switch {
 	// Attempt to unmarshal as a SessionDescription. If the SDP field is empty

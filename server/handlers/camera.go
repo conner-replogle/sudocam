@@ -71,7 +71,6 @@ func HandleGenerateCamera(jwtKey []byte) http.HandlerFunc {
 		data := &jwtmsg.CameraAdd{
 			UserID:       userID,
 			ServerURL:    serverURL,
-			FriendlyName: req.FriendlyName,
 			WifiNetwork:  req.WifiNetwork,
 			WifiPassword: req.WifiPassword,
 			RegisteredClaims: jwt.RegisteredClaims{
@@ -256,7 +255,7 @@ func DeleteCamera(db *gorm.DB) http.HandlerFunc {
 		userID := r.Context().Value(middleware.ContextUserKey).(string)
 		// Find the camera
 		var camera models.Camera
-		if err := db.Where("camera_uuid = ?", req.CameraUUID).First(&camera).Error; err != nil {
+		if err := db.Where("id = ?", req.CameraUUID).First(&camera).Error; err != nil {
 			http.Error(w, "Camera not found", http.StatusNotFound)
 			return
 		}

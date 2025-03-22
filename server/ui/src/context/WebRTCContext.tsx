@@ -7,6 +7,7 @@ import { useConnection } from '@/hooks/use-connection';
 
 interface CameraConnection {
   peerConnection: RTCPeerConnection;
+  dataChannel: RTCDataChannel | null;
   stream: MediaStream | null;
   loading: boolean;
   error: string | null;
@@ -102,6 +103,15 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
         iceServers: [turnData.iceServers],
       });
 
+      let datachannel = newPeerConnection.createDataChannel("movement")
+      datachannel.onopen = () => {
+        console.log("Data Channel Opened")
+      }
+      datachannel.onclose = () => {
+        console.log("Data Channel Closed")
+      }
+
+
       // Set initial connection state
       setConnections(prev => ({
         ...prev,
@@ -109,7 +119,8 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
           peerConnection: newPeerConnection,
           stream: null,
           loading: true,
-          error: null
+          error: null,
+          dataChannel:datachannel,
         }
       }));
 
@@ -141,6 +152,8 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
         }
       });
 
+     
+
       newPeerConnection.addEventListener("iceconnectionstatechange", () => {
         console.log(`ICE connection state for ${connectionKey}:`, newPeerConnection.iceConnectionState);
         if (newPeerConnection.iceConnectionState === "connected") {
@@ -168,7 +181,7 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
       });
 
       newPeerConnection.addTransceiver("video", { direction: "recvonly" });
-
+ 
       newPeerConnection.addEventListener("icecandidate", (event) => {
         if (event.candidate) {
           sendMessage({

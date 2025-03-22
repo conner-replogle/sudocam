@@ -6,13 +6,20 @@ require github.com/makiuchi-d/gozxing v0.1.1
 
 require (
 	github.com/aws/aws-sdk-go v1.55.6 // indirect
+	github.com/bluenviron/mediacommon v1.14.0 // indirect
+	github.com/h2non/bimg v1.1.9 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
+	github.com/swdee/go-rknnlite v0.0.0-20250224045641-066658caecd7 // indirect
 	github.com/u2takey/ffmpeg-go v0.5.0 // indirect
 	github.com/u2takey/go-utils v0.3.1 // indirect
+	gocv.io/x/gocv v0.41.0 // indirect
 )
 
 require (
+	github.com/aler9/gortsplib v1.0.1
+	github.com/bluenviron/gortsplib/v4 v4.12.3
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/deepch/vdk v0.0.27
 	github.com/gen2brain/malgo v0.11.23 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/uuid v1.6.0 // indirect

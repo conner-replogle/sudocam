@@ -76,12 +76,7 @@ const RemoteVideo = React.memo(({showStats, streamId, stream, pc }: RemoteVideoP
         }
       });
 
-      // If it's been more than 5 seconds since last data
-      if (Date.now() - lastDataTime > 5000) {
-        setNoDataReceived(true);
-      } else if (hasReceivedData) {
-        setNoDataReceived(false);
-      }
+     
 
     } catch (e) {
       console.error("Error getting stats:", e);
@@ -99,11 +94,7 @@ const RemoteVideo = React.memo(({showStats, streamId, stream, pc }: RemoteVideoP
   return (
     <div id={streamId} className="relative w-full h-full">
       <video ref={videoRef} playsInline className="max-w-full max-h-full w-auto h-auto mx-auto object-contain " />
-      {noDataReceived && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-white">
-          <span className="text-lg">No video data received...</span>
-        </div>
-      )}
+
       {showStats && <div className="absolute bottom-2 left-2 bg-gray-800/80 text-white p-2 rounded-lg text-sm flex gap-4">
         <span>{streamId}</span>
         {bitrate !== null && <span>{bitrate.toFixed(1)} Mbps</span>}

@@ -73,7 +73,6 @@ export default function AddCamera() {
       setIsLoading(false)
     }
   }
-
   return (
     <div className="container max-w-2xl py-6">
       <Card className="w-full">
