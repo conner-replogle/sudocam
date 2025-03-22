@@ -1,3 +1,4 @@
 camera/sudotest
 .env
 server/data/test.db
+.DS_Store
